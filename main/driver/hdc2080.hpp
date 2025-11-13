@@ -2,6 +2,8 @@
 
 #include <cstdint>
 #include <driver/i2c_master.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 
 class hdc2080
 {
@@ -29,8 +31,19 @@ public:
         DEVICE_ID_HIGH = 0xFF
     };
 
-private:
+    explicit hdc2080(i2c_master_bus_handle_t _bus = nullptr);
+    esp_err_t init(gpio_num_t drdy, gpio_num_t sda = GPIO_NUM_NC, gpio_num_t scl = GPIO_NUM_NC, i2c_port_t port = I2C_NUM_0);
+    esp_err_t read_humidity(float &rh_out) const;
+    esp_err_t read_temperature(float &degc_out) const;
+    esp_err_t reset() const;
 
+private:
+    esp_err_t write_reg(reg_addr reg, uint8_t data, int timeout_ms) const;
+    esp_err_t read_reg(reg_addr reg, uint8_t *data, int timeout_ms) const;
+
+    i2c_master_bus_handle_t i2c_bus = nullptr;
+    i2c_master_dev_handle_t i2c_dev = nullptr;
 
     static constexpr uint8_t DEV_ADDR = 0x40;
+    static constexpr char TAG[] = "hdc2080";
 };
