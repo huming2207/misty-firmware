@@ -31,11 +31,18 @@ public:
         DEVICE_ID_HIGH = 0xFF
     };
 
+    enum resolution : uint8_t {
+        RES_14BIT = 0x00,
+        RES_11BIT = 0x01,
+        RES_9BIT = 0x02,
+    };
+
     explicit hdc2080(i2c_master_bus_handle_t _bus = nullptr);
     esp_err_t init(gpio_num_t drdy, gpio_num_t sda = GPIO_NUM_NC, gpio_num_t scl = GPIO_NUM_NC, i2c_port_t port = I2C_NUM_0);
     esp_err_t read_humidity(float &rh_out) const;
     esp_err_t read_temperature(float &degc_out) const;
     esp_err_t reset() const;
+    esp_err_t set_measure_config(bool trigger, bool temperature_only = false, resolution humidity_res = RES_14BIT, resolution temp_res = RES_14BIT) const;
 
 private:
     esp_err_t write_reg(reg_addr reg, uint8_t data, int timeout_ms) const;

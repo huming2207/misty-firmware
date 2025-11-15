@@ -99,6 +99,15 @@ esp_err_t hdc2080::reset() const
     return ret;
 }
 
+esp_err_t hdc2080::set_measure_config(bool trigger, bool temperature_only, resolution humidity_res, resolution temp_res) const
+{
+    uint8_t val = trigger ? 1 : 0;
+    val |= temperature_only ? 0b10 : 0;
+    val |= (humidity_res << 4);
+    val |= (temp_res << 6);
+    return write_reg(MEASURE_CONFIG, val, 1000);
+}
+
 esp_err_t hdc2080::write_reg(reg_addr reg, uint8_t data, int timeout_ms) const
 {
     const uint8_t tx[2] = {reg, data};
