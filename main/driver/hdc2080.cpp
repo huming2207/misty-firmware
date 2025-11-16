@@ -17,7 +17,7 @@ esp_err_t hdc2080::init(gpio_num_t drdy, gpio_num_t sda, gpio_num_t scl, i2c_por
             .i2c_port = port,
             .sda_io_num = sda,
             .scl_io_num = scl,
-            .clk_source = I2C_CLK_SRC_XTAL,
+            .clk_source = I2C_CLK_SRC_RC_FAST,
             .glitch_ignore_cnt = 7,
             .intr_priority = 0,
             .trans_queue_depth = 0,
