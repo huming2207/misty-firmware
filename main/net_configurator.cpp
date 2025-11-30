@@ -12,34 +12,16 @@ ESP_EVENT_DEFINE_BASE(NET_CFG_EVENTS);
 
 esp_err_t net_configurator::init()
 {
-    esp_err_t ret = nvs_open("net", NVS_READWRITE, &nvs);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Can't load NVS namespace: 0x%x", ret);
-        return ret;
+    net_events = xEventGroupCreate();
+    if (net_events == nullptr) {
+        ESP_LOGE(TAG, "Failed to create net config event group");
+        return ESP_ERR_NO_MEM;
     }
 
-    uint32_t inited = 0;
-    ret = nvs_get_u32(nvs, NVS_KEY_INITIALISED, &inited);
-    if (ret == ESP_ERR_NVS_NOT_FOUND || ret == ESP_ERR_NOT_FOUND) {
-        ESP_LOGW(TAG, "init: First boot, set initialised");
-        ret = nvs_set_u32(nvs, NVS_KEY_INITIALISED, INITIALISED_MAGIC_VALUE);
-        if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "init: can't set INIT flag: 0x%x", ret);
-        }
-    }
-
-    if (ret == ESP_OK && inited != INITIALISED_MAGIC_VALUE) {
-        ESP_LOGE(TAG, "init: factory reset requested, erase & restart soon!");
-        vTaskDelay(pdMS_TO_TICKS(10000));
-        nvs_flash_erase();
-        esp_restart();
-    }
-
-    if (ret == ESP_OK && inited == INITIALISED_MAGIC_VALUE) {
-        ESP_LOGI(TAG, "init: LGTM");
-    } else {
-        ESP_LOGE(TAG, "init: something went wrong: 0x%x", ret);
-        return ret;
+    wifi_off_timer = xTimerCreate("net_manual_off", WIFI_MANUAL_ENABLE_TIMEOUT_TICKS, pdFALSE, this, wifi_off_timer_cb);
+    if (wifi_off_timer == nullptr) {
+        ESP_LOGE(TAG, "Failed to create WiFi off timer");
+        return ESP_ERR_NO_MEM;
     }
 
     esp_netif_init();
@@ -47,12 +29,12 @@ esp_err_t net_configurator::init()
     esp_netif_create_default_wifi_ap();
     esp_netif_create_default_wifi_sta();
 
-    esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(2, ESP_SNTP_SERVER_LIST("pool.ntp.org", "time.apple.com"));
-    sntp_cfg.smooth_sync = false; // We want time sync as soon as possible
-    ret = esp_netif_sntp_init(&sntp_cfg);
+    esp_err_t ret = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_evt_handler, this, nullptr);
+    ret = ret ?: esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_evt_handler, this, nullptr);
+    ret = ret ?: esp_event_handler_instance_register(NET_CFG_EVENTS, ESP_EVENT_ANY_ID, &wifi_evt_handler, this, nullptr);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "init: can't start SNTP");
-        return ret;
+        ESP_LOGW(TAG, "init: can't register event??? ret=0x%x", ret);
+        // Should we quit here???
     }
 
     return ESP_OK;
@@ -69,14 +51,6 @@ esp_err_t net_configurator::load_wifi()
     }
 
     wifi_config_t wifi_cfg = {};
-    ret = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_evt_handler, this, nullptr);
-    ret = ret ?: esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_evt_handler, this, nullptr);
-    ret = ret ?: esp_event_handler_instance_register(NET_CFG_EVENTS, ESP_EVENT_ANY_ID, &wifi_evt_handler, this, nullptr);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "load_wifi: can't register event??? ret=0x%x", ret);
-        // Should we quit here???
-    }
-
     ret = esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "load_wifi: can't get config??? ret=0x%x", ret);
@@ -108,12 +82,21 @@ esp_err_t net_configurator::load_wifi()
         }
 
         ESP_LOGI(TAG, "load_wifi: WiFi AP started");
+        xEventGroupSetBits(net_events, NET_CFG_STATE_WIFI_AP_ENABLED);
     } else {
         ESP_LOGI(TAG, "load_wifi: has valid config for SSID %s", wifi_cfg.sta.ssid);
         ret = esp_wifi_set_mode(WIFI_MODE_STA);
         ret = ret ?: esp_wifi_start();
         ret = ret ?: esp_wifi_set_inactive_time(WIFI_IF_STA, 6); // Might tune this later, see https://github.com/espressif/esp-idf/blob/v5.5.1/examples/wifi/power_save/main/Kconfig.projbuild#L35
         ret = ret ?: esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
+
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "load_wifi: WiFi STA start failed: 0x%x", ret);
+            return ret;
+        }
+
+        ESP_LOGI(TAG, "load_wifi: WiFi STA started");
+        xEventGroupSetBits(net_events, NET_CFG_STATE_WIFI_STA_ENABLED);
     }
 
     return ret;
@@ -121,16 +104,19 @@ esp_err_t net_configurator::load_wifi()
 
 esp_err_t net_configurator::set_wifi_config(wifi_config_t* config)
 {
+    ESP_LOGI(TAG, "Got new WiFi config!");
     return esp_wifi_set_config(WIFI_IF_STA, config);
 }
 
 void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, int32_t evt_id, void* evt_data)
 {
+    esp_err_t ret = ESP_OK;
     auto *ctx = (net_configurator *)_ctx;
     if (evt_base == WIFI_EVENT) {
         switch (evt_id) {
             case WIFI_EVENT_STA_DISCONNECTED:
             case WIFI_EVENT_STA_START: {
+                xEventGroupClearBits(ctx->net_events, NET_CFG_STATE_GOT_IP);
                 if (ctx->retry_cnt < MAX_RETRY_COUNT) {
                     esp_wifi_connect();
                 }
@@ -159,9 +145,81 @@ void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, i
         auto *event = (ip_event_got_ip_t*)evt_data;
         ESP_LOGI(TAG, "Got IP: " IPSTR, IP2STR(&event->ip_info.ip));
         ESP_LOGI(TAG, "Got IP Gateway: " IPSTR, IP2STR(&event->ip_info.gw));
-    } else if (evt_base == NET_CFG_EVENTS && evt_id == NET_CFG_EVENT_FORCE_WIFI_STOP) {
-        ESP_LOGI(TAG, "WiFi stop requested");
-        esp_wifi_stop();
+
+        xEventGroupSetBits(ctx->net_events, NET_CFG_STATE_GOT_IP);
+        esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(2, ESP_SNTP_SERVER_LIST("pool.ntp.org", "time.apple.com"));
+        sntp_cfg.smooth_sync = false; // We want time sync as soon as possible
+        sntp_cfg.sync_cb = sntp_sync_cb;
+        ret = esp_netif_sntp_init(&sntp_cfg);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Can't start SNTP: 0x%x", ret);
+            esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
+        }
     }
 }
 
+void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base, int32_t evt_id, void* evt_data)
+{
+    esp_err_t ret = ESP_OK;
+    auto *ctx = (net_configurator *)_ctx;
+
+    switch (evt_id) {
+        case NET_CFG_EVENT_FORCE_WIFI_STOP: {
+            ESP_LOGI(TAG, "WiFi stop requested");
+            esp_wifi_stop();
+            break;
+        }
+
+        case NET_CFG_EVENT_WIFI_START_MANUAL: {
+            ESP_LOGI(TAG, "WiFi start - manual");
+            ret = ctx->load_wifi();
+            if (ret != ESP_OK) {
+                ESP_LOGI(TAG, "WiFi start failed: 0x%x", ret);
+            }
+
+            if (xTimerIsTimerActive(ctx->wifi_off_timer) != pdFALSE) {
+                if (xTimerStop(ctx->wifi_off_timer, pdMS_TO_TICKS(3000)) != pdPASS) {
+                    ESP_LOGE(TAG, "Can't stop previous WiFi timer!");
+                    esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
+                }
+            }
+
+            if (xTimerStart(ctx->wifi_off_timer, pdMS_TO_TICKS(3000)) != pdPASS) {
+                ESP_LOGE(TAG, "Can't start WiFi timer!");
+                esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
+            }
+
+            break;
+        }
+        case NET_CFG_EVENT_WIFI_START_SYNC: {
+            ESP_LOGI(TAG, "WiFi start - auto sync");
+            ret = ctx->load_wifi();
+            if (ret != ESP_OK) {
+                ESP_LOGI(TAG, "WiFi start failed: 0x%x", ret);
+                esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
+            }
+
+            break;
+        }
+        case NET_CFG_EVENT_WIFI_SYNC_DONE: {
+            ESP_LOGW(TAG, "WIFI Sync done");
+            xEventGroupSetBits(ctx->net_events, NET_CFG_STATE_SYNC_DONE);
+            esp_wifi_stop(); // Just stop for now
+            break;
+        }
+        default: {
+            ESP_LOGW(TAG, "Unhandled net configurator event %ld", evt_id);
+            break;
+        }
+    }
+}
+
+void net_configurator::wifi_off_timer_cb(TimerHandle_t timer)
+{
+    esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(1000));
+}
+
+void net_configurator::sntp_sync_cb(timeval* tv)
+{
+    esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_WIFI_SYNC_DONE, nullptr, 0, pdMS_TO_TICKS(3000));
+}
