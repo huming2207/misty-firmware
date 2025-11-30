@@ -4,15 +4,7 @@
 
 esp_err_t sched_manager::init()
 {
-    esp_err_t ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        // NVS partition was truncated and needs to be erased
-        // Retry nvs_flash_init
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ret = nvs_flash_init();
-    }
-
-    ret = nvs_open("cron", NVS_READWRITE, &nvs);
+    esp_err_t ret = nvs_open("cron", NVS_READWRITE, &nvs);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "init: can't open NVS: 0x%x", ret);
         return ret;
@@ -133,8 +125,8 @@ esp_err_t sched_manager::load_schedules()
 
 esp_err_t sched_manager::set_schedule(const char* name, const cron_store_entry* entry)
 {
-    size_t cfg_len = sizeof(cron_store_entry);
-    esp_err_t ret = nvs_get_blob(nvs, name, nullptr, &cfg_len);
+    nvs_type_t nvs_type = NVS_TYPE_ANY;
+    esp_err_t ret = nvs_find_key(nvs, name, &nvs_type);
     if (ret == ESP_ERR_NVS_NOT_FOUND || ret == ESP_ERR_NOT_FOUND) {
         ESP_LOGI(TAG, "set: item %s inserting", name);
         ret = nvs_set_blob(nvs, name, entry, sizeof(cron_store_entry));
