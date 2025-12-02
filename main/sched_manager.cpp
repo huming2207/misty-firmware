@@ -155,6 +155,60 @@ esp_err_t sched_manager::get_schedule(const char* name, cron_store_entry* entry_
     return ret;
 }
 
+esp_err_t sched_manager::list_all_schedule_names_to_json(char* name_out, size_t len) const
+{
+    if (name_out == nullptr || len < ((NVS_KEY_NAME_MAX_SIZE + 3) * task_items.size() + 1)) {
+        ESP_LOGE(TAG, "Name list buffer too short");
+        return ESP_ERR_NO_MEM;
+    }
+
+    nvs_iterator_t nvs_it = nullptr;
+    esp_err_t ret = nvs_entry_find_in_handle(nvs, NVS_TYPE_BLOB, &nvs_it);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "load_sched: Can't open NVS handle: 0x%x", ret);
+        return ret;
+    }
+
+    size_t out_idx = 0;
+
+    char *out = name_out;
+    out[out_idx++] = '[';
+
+    size_t item_idx = 0;
+    while (nvs_it != nullptr && item_idx < task_items.size() && out_idx + 2 < len) {
+        out[out_idx++] = '"';
+        nvs_entry_info_t entry = {};
+        ret = nvs_entry_info(nvs_it, &entry);
+        if (ret != ESP_OK) {
+            ESP_LOGW(TAG, "load_sched: can't load NVS entry: 0x%x", ret);
+            return ret;
+        }
+
+        size_t copy_len = strnlen(entry.key, sizeof(nvs_entry_info_t::key));
+        memcpy(out + out_idx, entry.key, copy_len);
+        out_idx += copy_len;
+        out[out_idx++] = '"';
+
+        ret = nvs_entry_next(&nvs_it);
+        if (ret != ESP_OK) {
+            break;
+        }
+
+        if (nvs_it != nullptr) {
+            out[out_idx++] = ',';
+        } else {
+            break;
+        }
+    }
+
+
+    out[out_idx++] = ']';
+    out[out_idx++] = '\0';
+    ESP_LOGI(TAG, "list_all_name: written %u bytes", out_idx);
+
+    return ESP_OK;
+}
+
 esp_err_t sched_manager::delete_schedule(const char* name) const
 {
     return nvs_erase_key(nvs, name);

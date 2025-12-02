@@ -66,6 +66,7 @@ public:
     esp_err_t load_schedules();
     esp_err_t set_schedule(const char *name, const cron_store_entry *entry);
     esp_err_t get_schedule(const char *name, cron_store_entry *entry_out) const;
+    esp_err_t list_all_schedule_names_to_json(char *name_out, size_t len) const;
     esp_err_t delete_schedule(const char *name) const;
 
 private:
