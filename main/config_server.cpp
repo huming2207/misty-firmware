@@ -90,7 +90,7 @@ esp_err_t config_server::get_schedule_handler(httpd_req_t* req)
         return httpd_resp_send(req, out, (ssize_t)strnlen(out, sizeof(out)));
     }
 
-    char name[17] = { 0 };
+    char name[16] = { 0 };
     auto ret = httpd_query_key_value(query, "name", name, sizeof(name) - 1);
     name[sizeof(name) - 1] = '\0';
 
@@ -145,7 +145,30 @@ esp_err_t config_server::remove_schedule_handler(httpd_req_t* req)
     if (ctx != nullptr) {
         return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid user context");
     }
-    return ESP_OK;
+
+    char query[64] = { 0 };
+    char out[152] = { 0 };
+    if (httpd_req_get_url_query_len(req) > sizeof(query) - 1 || httpd_req_get_url_query_len(req) <= 1) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument");
+    }
+
+    if (httpd_req_get_url_query_str(req, query, sizeof(query) - 1) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument");
+    }
+
+    char name[16] = { 0 };
+    auto ret = httpd_query_key_value(query, "name", name, sizeof(name) - 1);
+    name[sizeof(name) - 1] = '\0';
+
+    ret = ret ?: sched_manager::instance().delete_schedule(name);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to delete %s", name);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to delete schedule");
+    }
+
+    ret = httpd_resp_set_status(req, "202 Accepted");
+    ret = ret ?: httpd_resp_sendstr(req, "OK");
+    return ret;
 }
 
 esp_err_t config_server::set_wifi_config_handler(httpd_req_t* req)
