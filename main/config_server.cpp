@@ -1,8 +1,10 @@
 #include <esp_log.h>
 #include <esp_app_desc.h>
+#include <esp_wifi.h>
 #include "config_server.hpp"
 
 #include "mjson.h"
+#include "net_configurator.hpp"
 #include "sched_manager.hpp"
 
 esp_err_t config_server::init()
@@ -140,14 +142,7 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
 
 esp_err_t config_server::remove_schedule_handler(httpd_req_t* req)
 {
-    httpd_resp_set_type(req, "application/json");
-    auto *ctx = (config_server *)req->user_ctx;
-    if (ctx != nullptr) {
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid user context");
-    }
-
     char query[64] = { 0 };
-    char out[152] = { 0 };
     if (httpd_req_get_url_query_len(req) > sizeof(query) - 1 || httpd_req_get_url_query_len(req) <= 1) {
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument");
     }
@@ -173,12 +168,30 @@ esp_err_t config_server::remove_schedule_handler(httpd_req_t* req)
 
 esp_err_t config_server::set_wifi_config_handler(httpd_req_t* req)
 {
-    httpd_resp_set_type(req, "application/json");
-    auto *ctx = (config_server *)req->user_ctx;
-    if (ctx != nullptr) {
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid user context");
+    char query[96] = { 0 };
+    if (httpd_req_get_url_query_len(req) > sizeof(query) - 1 || httpd_req_get_url_query_len(req) <= 1) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument length");
     }
-    return ESP_OK;
+
+    if (httpd_req_get_url_query_str(req, query, sizeof(query) - 1) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument");
+    }
+
+    wifi_config_t config = {};
+    auto ret = httpd_query_key_value(query, "ssid", (char *)config.sta.ssid, sizeof(wifi_config_t::sta.ssid) - 1);
+    config.sta.ssid[sizeof(wifi_config_t::sta.ssid) - 1] = '\0';
+
+    ret = ret ?: httpd_query_key_value(query, "pwd", (char *)config.sta.password, sizeof(wifi_config_t::sta.password) - 1);
+    config.sta.password[sizeof(wifi_config_t::sta.password) - 1] = '\0';
+
+    ret = ret ?: net_configurator::instance().set_wifi_config(&config);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set wifi: 0x%x", ret);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to set WiFi");
+    }
+
+    httpd_resp_set_status(req, "202 Accepted");
+    return httpd_resp_sendstr(req, "OK");
 }
 
 esp_err_t config_server::get_wifi_config_handler(httpd_req_t* req)
