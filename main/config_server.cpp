@@ -129,15 +129,180 @@ esp_err_t config_server::get_schedule_handler(httpd_req_t* req)
 
 esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
 {
-    httpd_resp_set_type(req, "application/json");
-    auto *ctx = (config_server *)req->user_ctx;
-    if (ctx != nullptr) {
-        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid user context");
+    char query[256] = { 0 };
+    if (httpd_req_get_url_query_len(req) > sizeof(query) - 1 || httpd_req_get_url_query_len(req) <= 1) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument");
     }
 
+    if (httpd_req_get_url_query_str(req, query, sizeof(query) - 1) != ESP_OK) {
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument");
+    }
+
+    // Get the type first
+    char val[16] = { 0 };
+    auto ret = httpd_query_key_value(query, "type", val, sizeof(val) - 1);
+    val[sizeof(val) - 1] = '\0';
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "add_sched: failed to parse type");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse schedule type");
+    }
+
+    ESP_LOGI(TAG, "add_sched: type=%s", val);
+    sched_manager::cron_store_entry entry = {};
+    if (strncmp("sunrise", val, sizeof(val)) == 0) {
+        entry.schedule_type = ESP_SCHEDULE_TYPE_SUNRISE;
+    } else if (strncmp("sunset", val, sizeof(val)) == 0) {
+        entry.schedule_type = ESP_SCHEDULE_TYPE_SUNSET;
+    } else if (strncmp("dow", val, sizeof(val)) == 0) {
+        entry.schedule_type = ESP_SCHEDULE_TYPE_DAYS_OF_WEEK;
+    } else {
+        ESP_LOGW(TAG, "add_sched: invalid type");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid schedule type");
+    }
+
+    // Pump selection
+    memset(val, 0, sizeof(val));
+    ret = httpd_query_key_value(query, "pump", val, sizeof(val) - 1);
+    val[sizeof(val) - 1] = '\0';
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "add_sched: failed to parse pump");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse schedule type");
+    }
+
+    auto pump_select = strtol(val, nullptr, 10);
+    ESP_LOGI(TAG, "add_sched: pump=%s parsed to %ld", val, pump_select);
+    if (pump_select < 1 || pump_select > sched_manager::PUMP_ALL) {
+        ESP_LOGW(TAG, "add_sched: invalid pump selection");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid pump selection");
+    }
+
+    entry.select_pumps = (sched_manager::pump_bits)(pump_select & 0xff);
+
+    // DoW
+    memset(val, 0, sizeof(val));
+    ret = httpd_query_key_value(query, "dow", val, sizeof(val) - 1);
+    val[sizeof(val) - 1] = '\0';
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "add_sched: failed to parse DoW");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse schedule DoW");
+    }
+
+    auto dow = strtol(val, nullptr, 10);
+    ESP_LOGI(TAG, "add_sched: dow=%s parsed to %ld", val, dow);
+    if (dow < 1) {
+        ESP_LOGW(TAG, "add_sched: invalid DoW selection");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid day of week selection");
+    }
+
+    entry.day_of_week = (uint8_t)(dow & 0xff);
 
 
-    return ESP_OK;
+    // DoW hours and minutes
+    if (entry.schedule_type == ESP_SCHEDULE_TYPE_DAYS_OF_WEEK) {
+        memset(val, 0, sizeof(val));
+        ret = httpd_query_key_value(query, "hour", val, sizeof(val) - 1);
+        val[sizeof(val) - 1] = '\0';
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "add_sched: failed to parse DoW hour");
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse dow.hour type");
+        }
+
+        auto hour = strtol(val, nullptr, 10);
+        ESP_LOGI(TAG, "add_sched: dow.hour=%s parsed to %ld", val, dow);
+        if (hour < 1 || hour >= 24) {
+            ESP_LOGW(TAG, "add_sched: invalid DoW hour");
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid DoW hour");
+        }
+
+        entry.dow.hour = (uint8_t)(hour & 0xff);
+
+        memset(val, 0, sizeof(val));
+        ret = httpd_query_key_value(query, "min", val, sizeof(val) - 1);
+        val[sizeof(val) - 1] = '\0';
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "add_sched: failed to parse DoW minute");
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse dow.minute type");
+        }
+
+        auto min = strtol(val, nullptr, 10);
+        ESP_LOGI(TAG, "add_sched: dow.min=%s parsed to %ld", val, dow);
+        if (min < 1 || min >= 60) {
+            ESP_LOGW(TAG, "add_sched: invalid DoW minute");
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid DoW minute");
+        }
+
+        entry.dow.minute = (uint8_t)(min & 0xff);
+    } else {
+        memset(val, 0, sizeof(val));
+        ret = httpd_query_key_value(query, "off", val, sizeof(val) - 1);
+        val[sizeof(val) - 1] = '\0';
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "add_sched: failed to parse DoW hour");
+            return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse offset type");
+        }
+
+        auto offset = (int16_t)strtol(val, nullptr, 10);
+        ESP_LOGI(TAG, "add_sched: sun.offset=%s parsed to %d", val, dow);
+
+        entry.offset_minute = offset;
+    }
+
+    memset(val, 0, sizeof(val));
+    ret = httpd_query_key_value(query, "durd", val, sizeof(val) - 1);
+    val[sizeof(val) - 1] = '\0';
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "add_sched: failed to parse dry duration");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse dry duration");
+    }
+
+    auto dry_dur = (uint32_t)strtol(val, nullptr, 10);
+    ESP_LOGI(TAG, "add_sched: dry duration=%s parsed to %d", val, dow);
+
+    entry.duration_ms[sched_manager::PROFILE_DRY] = dry_dur;
+
+    memset(val, 0, sizeof(val));
+    ret = httpd_query_key_value(query, "durm", val, sizeof(val) - 1);
+    val[sizeof(val) - 1] = '\0';
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "add_sched: failed to parse moderate duration");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse moderate duration");
+    }
+
+    auto moderate_dur = (uint32_t)strtol(val, nullptr, 10);
+    ESP_LOGI(TAG, "add_sched: moderate duration=%s parsed to %d", val, dow);
+
+    entry.duration_ms[sched_manager::PROFILE_MODERATE] = moderate_dur;
+
+    memset(val, 0, sizeof(val));
+    ret = httpd_query_key_value(query, "durw", val, sizeof(val) - 1);
+    val[sizeof(val) - 1] = '\0';
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "add_sched: failed to parse wet duration");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Can't parse wet duration");
+    }
+
+    auto wet_dur = (uint32_t)strtol(val, nullptr, 10);
+    ESP_LOGI(TAG, "add_sched: wet duration=%s parsed to %d", val, dow);
+
+    entry.duration_ms[sched_manager::PROFILE_MODERATE] = wet_dur;
+
+    memset(val, 0, sizeof(val));
+    ret = httpd_query_key_value(query, "name", val, sizeof(val) - 1);
+    val[sizeof(val) - 1] = '\0';
+    if (strnlen(val, sizeof(val)) > NVS_KEY_NAME_MAX_SIZE || strnlen(val, sizeof(val)) == 0) {
+        ESP_LOGE(TAG, "add_sched: Invalid name");
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid name");
+    }
+
+    ret = sched_manager::instance().set_schedule(val, &entry);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "add_sched: set schedule failed: 0x%x", ret);
+        return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Set schedule failed");
+    }
+
+    ret = httpd_resp_set_status(req, "202 Accepted");
+    ret = ret ?: httpd_resp_sendstr(req, "OK");
+    return ret;
 }
 
 esp_err_t config_server::remove_schedule_handler(httpd_req_t* req)
