@@ -24,24 +24,17 @@ esp_err_t net_configurator::init()
         return ESP_ERR_NO_MEM;
     }
 
+    wifi_sync_timer = xTimerCreate("net_wifi_sync", WIFI_SYNC_PERIOD_TICKS, pdTRUE, this, wifi_sync_timer_cb);
+    if (wifi_sync_timer == nullptr) {
+        ESP_LOGE(TAG, "Failed to create WiFi sync periodic timer");
+        return ESP_ERR_NO_MEM;
+    }
+
     esp_netif_init();
     esp_event_loop_create_default();
     esp_netif_create_default_wifi_ap();
     esp_netif_create_default_wifi_sta();
 
-    esp_err_t ret = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_evt_handler, this, nullptr);
-    ret = ret ?: esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_evt_handler, this, nullptr);
-    ret = ret ?: esp_event_handler_instance_register(NET_CFG_EVENTS, ESP_EVENT_ANY_ID, &wifi_evt_handler, this, nullptr);
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "init: can't register event??? ret=0x%x", ret);
-        // Should we quit here???
-    }
-
-    return ESP_OK;
-}
-
-esp_err_t net_configurator::load_wifi()
-{
     wifi_init_config_t init_cfg = WIFI_INIT_CONFIG_DEFAULT();
     esp_err_t ret = esp_wifi_init(&init_cfg);
 
@@ -50,14 +43,35 @@ esp_err_t net_configurator::load_wifi()
         return ret;
     }
 
+    ret = esp_event_handler_instance_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &wifi_evt_handler, this, nullptr);
+    ret = ret ?: esp_event_handler_instance_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &wifi_evt_handler, this, nullptr);
+    ret = ret ?: esp_event_handler_instance_register(NET_CFG_EVENTS, ESP_EVENT_ANY_ID, &net_cfg_evt_handler, this, nullptr);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "init: can't register event??? ret=0x%x", ret);
+        // Should we quit here???
+    }
+
+    if (wifi_has_station_config()) {
+        if (xTimerStart(wifi_sync_timer, pdMS_TO_TICKS(1000)) == pdFAIL) {
+            ESP_LOGE(TAG, "init: can't start WiFi sync timer");
+        }
+    } else {
+        ESP_LOGW(TAG, "init: skip starting wifi sync timer cuz no config");
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t net_configurator::load_wifi()
+{
     wifi_config_t wifi_cfg = {};
-    ret = esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
+    auto ret = esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
     if (ret != ESP_OK) {
         ESP_LOGW(TAG, "load_wifi: can't get config??? ret=0x%x", ret);
         // Should we quit here???
     }
 
-    if (init_cfg.magic != WIFI_INIT_CONFIG_MAGIC || strlen((char *)wifi_cfg.sta.ssid) == 0) {
+    if (strnlen((char *)wifi_cfg.sta.ssid, sizeof(wifi_config_t::sta.password)) == 0) {
         ESP_LOGW(TAG, "load_wifi: invalid STA, starting AP now");
 
         uint8_t mac_addr[6] = { 0 };
@@ -105,7 +119,23 @@ esp_err_t net_configurator::load_wifi()
 esp_err_t net_configurator::set_wifi_config(wifi_config_t* config)
 {
     ESP_LOGI(TAG, "Got new WiFi config!");
-    return esp_wifi_set_config(WIFI_IF_STA, config);
+    auto ret = esp_wifi_set_config(WIFI_IF_STA, config);
+    ret = ret ?: esp_wifi_stop();
+    ret = ret ?: load_wifi();
+
+    return ret;
+}
+
+bool net_configurator::wifi_has_station_config()
+{
+    wifi_config_t wifi_cfg = {};
+    auto ret = esp_wifi_get_config(WIFI_IF_STA, &wifi_cfg);
+    if (ret != ESP_OK) {
+        ESP_LOGW(TAG, "has_config: can't get config??? ret=0x%x", ret);
+        return false;
+    }
+
+    return strnlen((char *)wifi_cfg.sta.ssid, sizeof(wifi_config_t::sta.password)) != 0;
 }
 
 void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, int32_t evt_id, void* evt_data)
@@ -133,6 +163,16 @@ void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, i
                 auto *event = (wifi_event_sta_beacon_offset_unstable_t*)evt_data;
                 ESP_LOGI(TAG, "WiFi beacon sample unstable, success rate %.4f", event->beacon_success_rate);
                 esp_wifi_beacon_offset_sample_beacon();
+                break;
+            }
+
+            case WIFI_EVENT_AP_START: {
+                ESP_LOGI(TAG, "WiFi AP started");
+
+                if (xTimerStart(ctx->wifi_off_timer, pdMS_TO_TICKS(1000)) == pdFAIL) {
+                    ESP_LOGE(TAG, "wifi_evt: can't start WiFi off timer");
+                }
+
                 break;
             }
 
@@ -193,10 +233,15 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
         }
         case NET_CFG_EVENT_WIFI_START_SYNC: {
             ESP_LOGI(TAG, "WiFi start - auto sync");
-            ret = ctx->load_wifi();
-            if (ret != ESP_OK) {
-                ESP_LOGI(TAG, "WiFi start failed: 0x%x", ret);
-                esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
+
+            if (wifi_has_station_config()) {
+                ret = ctx->load_wifi();
+                if (ret != ESP_OK) {
+                    ESP_LOGI(TAG, "sync: WiFi start failed: 0x%x", ret);
+                    esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
+                }
+            } else {
+                ESP_LOGW(TAG, "sync: No station config, skip sync!!");
             }
 
             break;
@@ -217,6 +262,11 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
 void net_configurator::wifi_off_timer_cb(TimerHandle_t timer)
 {
     esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(1000));
+}
+
+void net_configurator::wifi_sync_timer_cb(TimerHandle_t timer)
+{
+    esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_WIFI_START_SYNC, nullptr, 0, pdMS_TO_TICKS(1000));
 }
 
 void net_configurator::sntp_sync_cb(timeval* tv)
