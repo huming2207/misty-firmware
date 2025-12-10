@@ -24,11 +24,10 @@ esp_err_t hdc2080::init(gpio_num_t drdy, gpio_num_t sda, gpio_num_t scl, i2c_por
             .flags = {
                 .enable_internal_pullup = 1,
 #if !SOC_I2C_SUPPORT_SLEEP_RETENTION
-                .allow_pd = 1,
+                .allow_pd = 0,
 #else
                 .allow_pd = 1,
 #endif
-
             }
         };
 
