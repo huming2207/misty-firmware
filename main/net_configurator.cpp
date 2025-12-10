@@ -71,7 +71,7 @@ esp_err_t net_configurator::load_wifi()
         // Should we quit here???
     }
 
-    if (strnlen((char *)wifi_cfg.sta.ssid, sizeof(wifi_config_t::sta.password)) == 0) {
+    if (strnlen((char *)wifi_cfg.sta.ssid, sizeof(wifi_config_t::sta.ssid)) == 0) {
         ESP_LOGW(TAG, "load_wifi: invalid STA, starting AP now");
 
         uint8_t mac_addr[6] = { 0 };
@@ -135,7 +135,7 @@ bool net_configurator::wifi_has_station_config()
         return false;
     }
 
-    return strnlen((char *)wifi_cfg.sta.ssid, sizeof(wifi_config_t::sta.password)) != 0;
+    return strnlen((char *)wifi_cfg.sta.ssid, sizeof(wifi_config_t::sta.ssid)) != 0;
 }
 
 void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, int32_t evt_id, void* evt_data)
