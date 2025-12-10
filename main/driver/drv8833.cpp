@@ -3,7 +3,7 @@
 #include "drv8833.hpp"
 
 
-esp_err_t drv8833::init(bool skip_ledc)
+esp_err_t drv8833::init()
 {
     gpio_config_t config = {
         .pin_bit_mask = (1ULL << a_in1) | (1ULL << a_in2) | (1ULL << b_in1) | (1ULL << b_in2),
@@ -19,8 +19,8 @@ esp_err_t drv8833::init(bool skip_ledc)
         return ret;
     }
 
-    no_ledc = skip_ledc;
-    if (skip_ledc) {
+    no_ledc = timer != LEDC_TIMER_MAX;
+    if (no_ledc) {
         return ESP_OK;
     }
 
@@ -108,6 +108,11 @@ esp_err_t drv8833::init(bool skip_ledc)
     }
 
     return ret;
+}
+
+void drv8833::set_sleep(bool enable_sleep) const
+{
+    gpio_ll_set_level(&GPIO, sleep, enable_sleep ? 0 : 1);
 }
 
 esp_err_t drv8833::spin(uint8_t channel, bool reverse, bool fast_decay, uint8_t duty_cycle) const
