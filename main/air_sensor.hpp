@@ -24,6 +24,7 @@ private:
     static constexpr size_t MEAS_WINDOW_HOURS = 24;
     static constexpr size_t MEAS_WINDOW_INTERVAL_MINUTE = 30;
     static constexpr size_t MEAS_ACCUM_COUNT = 5; // Every MEAS_WINDOW_INTERVAL_MINUTE measure MEAS_ACCUM_COUNT times
+    static constexpr size_t MEASURE_INTERVAL_MINUTE = MEAS_WINDOW_INTERVAL_MINUTE / MEAS_ACCUM_COUNT;
     static constexpr size_t MEAS_SLOTS = (MEAS_WINDOW_HOURS * 60) / MEAS_WINDOW_INTERVAL_MINUTE;
     static constexpr char TAG[] = "air_sensor";
 
@@ -31,6 +32,8 @@ private:
 public:
     esp_err_t init();
     esp_err_t sense();
+    [[nodiscard]] float average_temperature() const;
+    [[nodiscard]] float average_humidity() const;
 
 private:
     // One-hour accumulator

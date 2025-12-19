@@ -43,7 +43,7 @@ esp_err_t air_sensor::sense()
     accumulated_reading_cnt += 1;
 
     if (accumulated_reading_cnt >= MEAS_ACCUM_COUNT) {
-        ESP_LOGW(TAG, "sense: Write average value to slot now");
+        ESP_LOGW(TAG, "sense: Write average value to slot %d", (int)history_slot_idx);
         humid_slots[history_slot_idx] = (humid_accumulator / (float)accumulated_reading_cnt);
         temp_slots[history_slot_idx] = (temp_accumulator / (float)accumulated_reading_cnt);
 
@@ -51,25 +51,47 @@ esp_err_t air_sensor::sense()
 
         if (history_slot_idx >= MEAS_SLOTS) {
             history_slot_idx = 0;
-            latest_temperature_avg = (temp_accumulator / (float)accumulated_reading_cnt);
-            latest_humidity_avg = (humid_accumulator / (float)accumulated_reading_cnt);
         }
-
-        float temperature_sum = 0, humidity_sum = 0;
-
-        // For the first round the  slots will be set to invalid temperature/humidity - do not add them in
-        for (size_t idx = 0; idx < MEAS_SLOTS; idx += 1) {
-            temperature_sum += temp_slots[idx] < -273.0f ? 0 : temp_slots[idx];
-            humidity_sum += humid_slots[idx] < 0 ? 0 : humid_slots[idx];
-        }
-
-        latest_humidity_avg = humidity_sum / (float)history_slot_idx;
-        latest_temperature_avg = temperature_sum / (float)history_slot_idx;
 
         accumulated_reading_cnt = 0;
         temp_accumulator = 0;
         humid_accumulator = 0;
     }
 
+    float temperature_sum = 0, humidity_sum = 0;
+    size_t valid_count = 0;
+
+    // Sum up all valid slots to calculate the rolling average
+    for (size_t idx = 0; idx < MEAS_SLOTS; idx += 1) {
+        // Check if the slot has valid data (initialized to -300/-1)
+        if (temp_slots[idx] > -273.0f && humid_slots[idx] >= 0) {
+            temperature_sum += temp_slots[idx];
+            humidity_sum += humid_slots[idx];
+            valid_count++;
+        }
+    }
+
+    // Include the current partial accumulation in the average if it exists
+    if (accumulated_reading_cnt > 0) {
+        temperature_sum += (temp_accumulator / (float)accumulated_reading_cnt);
+        humidity_sum += (humid_accumulator / (float)accumulated_reading_cnt);
+        valid_count++;
+    }
+
+    if (valid_count > 0) {
+        latest_humidity_avg = humidity_sum / (float)valid_count;
+        latest_temperature_avg = temperature_sum / (float)valid_count;
+    }
+
     return ESP_OK;
+}
+
+float air_sensor::average_temperature() const
+{
+    return latest_temperature_avg;
+}
+
+float air_sensor::average_humidity() const
+{
+    return latest_humidity_avg;
 }
