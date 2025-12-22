@@ -1,6 +1,10 @@
 #pragma once
 
+#include <atomic>
 #include <esp_err.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/timers.h>
+#include <freertos/event_groups.h>
 
 #include "drv8833.hpp"
 #include "hdc2080.hpp"
@@ -31,9 +35,27 @@ private:
 
 public:
     esp_err_t init();
-    esp_err_t sense();
+    bool has_valid_reading() const;
     [[nodiscard]] float average_temperature() const;
     [[nodiscard]] float average_humidity() const;
+
+private:
+    esp_err_t sense();
+    static void sense_timer_cb(TimerHandle_t timer);
+    static void sense_process_task(void *_ctx);
+
+public:
+    enum sensor_states : uint32_t
+    {
+        HAS_VALID_DATA = BIT(0),
+        READY_TO_READ = BIT(1),
+    };
+
+    static constexpr uint32_t HUMID_DRY_THRESH = 39;
+    static constexpr uint32_t HUMID_MODERATE_THRESH = 79;
+
+    static constexpr uint32_t TEMP_DRY_THRESH = 30;
+    static constexpr uint32_t TEMP_MODERATE_THRESH = 18;
 
 private:
     // One-hour accumulator
@@ -42,15 +64,13 @@ private:
     size_t valid_slots_count = 0;
     float temp_accumulator = 0;
     float humid_accumulator = 0;
-    float latest_temperature_avg = 0;
-    float latest_humidity_avg = 0;
+    TimerHandle_t measure_timer = nullptr;
+    EventGroupHandle_t measure_evt = nullptr;
+    std::atomic<float> latest_temperature_avg = 0;
+    std::atomic<float> latest_humidity_avg = 0;
     float temp_slots[MEAS_SLOTS] = {};
     float humid_slots[MEAS_SLOTS] = {};
 
 
     hdc2080 temp_sensor = hdc2080();
-    drv8833 pump = drv8833(misty::PUMP_AIN1_PIN, misty::PUMP_AIN2_PIN, misty::PUMP_BIN1_PIN, misty::PUMP_BIN2_PIN,
-                            misty::PUMP_FAULT_PIN, misty::PUMP_SLEEP_PIN);
-
-
 };

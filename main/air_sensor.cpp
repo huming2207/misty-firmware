@@ -23,6 +23,28 @@ esp_err_t air_sensor::init()
         humid_slots[idx] = -1; // RH is % so it can't be negative anyway
     }
 
+    measure_timer = xTimerCreate("air_sense", pdMS_TO_TICKS(MEAS_WINDOW_INTERVAL_MINUTE * 60000UL), pdTRUE, this, sense_timer_cb);
+    if (measure_timer == nullptr) {
+        ESP_LOGE(TAG, "Failed to create air sensor timer");
+        return ESP_ERR_NO_MEM;
+    }
+
+    measure_evt = xEventGroupCreate();
+    if (measure_evt == nullptr) {
+        ESP_LOGE(TAG, "Failed to create air sensor event group");
+        return ESP_ERR_NO_MEM;
+    }
+
+    if (xTaskCreate(sense_process_task, "air_sense_tsk", 4096, this, tskIDLE_PRIORITY + 3, nullptr) == pdFAIL) {
+        ESP_LOGE(TAG, "Failed to create air sensor task");
+        return ESP_ERR_NO_MEM;
+    }
+
+    if (xTimerStart(measure_timer, 1) == pdFAIL) {
+        ESP_LOGE(TAG, "Failed to start air sensor timer");
+        return ESP_ERR_INVALID_STATE;
+    }
+
     return ESP_OK;
 }
 
@@ -81,9 +103,20 @@ esp_err_t air_sensor::sense()
     if (valid_count > 0) {
         latest_humidity_avg = humidity_sum / (float)valid_count;
         latest_temperature_avg = temperature_sum / (float)valid_count;
+        xEventGroupSetBits(measure_evt, HAS_VALID_DATA);
     }
 
+    ESP_LOGI(TAG, "sense: avg temp=%.3f, humid=%.3f", latest_temperature_avg.load(), latest_humidity_avg.load());
     return ESP_OK;
+}
+
+bool air_sensor::has_valid_reading() const
+{
+    if (measure_evt == nullptr) {
+        return false;
+    }
+
+    return (xEventGroupGetBits(measure_evt) & HAS_VALID_DATA) != 0;
 }
 
 float air_sensor::average_temperature() const
@@ -94,4 +127,22 @@ float air_sensor::average_temperature() const
 float air_sensor::average_humidity() const
 {
     return latest_humidity_avg;
+}
+
+void air_sensor::sense_timer_cb(TimerHandle_t timer)
+{
+    auto *ctx = (air_sensor *)pvTimerGetTimerID(timer);
+    assert(ctx != nullptr);
+
+    xEventGroupSetBits(ctx->measure_evt, READY_TO_READ);
+}
+
+void air_sensor::sense_process_task(void* _ctx)
+{
+    auto *ctx = (air_sensor *)_ctx;
+    while (true) {
+        xEventGroupWaitBits(ctx->measure_evt, READY_TO_READ, pdTRUE, pdTRUE, portMAX_DELAY);
+        ctx->sense();
+        vTaskDelay(1);
+    }
 }
