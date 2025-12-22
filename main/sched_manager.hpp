@@ -5,11 +5,13 @@
 #include <freertos/queue.h>
 #include <esp_schedule.h>
 
+#include "drv8833.hpp"
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "nvs_handle.hpp"
 
 #include "esp_bit_defs.h"
+#include "pin_defs.hpp"
 
 class sched_manager
 {
@@ -80,6 +82,8 @@ private:
 
     // Because I'm targeting ESP32-C6 so better off use array instead of vector/deque to save heap
     std::array<cron_task_item, 10> task_items = {};
+    drv8833 pump = drv8833(misty::PUMP_AIN1_PIN, misty::PUMP_AIN2_PIN, misty::PUMP_BIN1_PIN, misty::PUMP_BIN2_PIN,
+                            misty::PUMP_FAULT_PIN, misty::PUMP_SLEEP_PIN);
 
 
     static const constexpr char TAG[] = "cronman";

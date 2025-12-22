@@ -1,5 +1,6 @@
 #include "sched_manager.hpp"
 
+#include "air_sensor.hpp"
 #include "esp_log.h"
 
 esp_err_t sched_manager::init()
@@ -216,7 +217,53 @@ esp_err_t sched_manager::delete_schedule(const char* name) const
 
 void sched_manager::schedule_dispatcher(cron_task_item* item)
 {
+    auto &sensor = air_sensor::instance();
+    bool sensor_has_reading = sensor.has_valid_reading();
+    float humidity = sensor.average_humidity();
+    duration_profile profile = PROFILE_MODERATE;
 
+    if (!sensor_has_reading) {
+        profile = PROFILE_MODERATE;
+        ESP_LOGI(TAG, "dispatch: no reading, profile set to MODERATE");
+    } else {
+        if (humidity <= air_sensor::HUMID_DRY_THRESH) {
+            profile = PROFILE_DRY;
+            ESP_LOGI(TAG, "dispatch: profile set to DRY");
+        } else if (humidity <= air_sensor::HUMID_MODERATE_THRESH && humidity > air_sensor::HUMID_DRY_THRESH) {
+            profile = PROFILE_MODERATE;
+            ESP_LOGI(TAG, "dispatch: profile set to MODERATE");
+        } else {
+            profile = PROFILE_WET;
+            ESP_LOGI(TAG, "dispatch: profile set to WET");
+        }
+    }
+
+    pump.set_sleep(false);
+    if ((item->sched_info.select_pumps & 0b01) != 0) {
+        pump.spin(0, false, false, 100);
+    }
+
+    if ((item->sched_info.select_pumps & 0b10) != 0) {
+        pump.spin(1, false, false, 100);
+    }
+
+    uint32_t duration_ms = item->sched_info.duration_ms[profile];
+    if (duration_ms > 3600*1000) {
+        ESP_LOGW(TAG, "Duration is too long, set back to 1 hour");
+        duration_ms = 3600*1000;
+    }
+
+    vTaskDelay(pdMS_TO_TICKS(duration_ms));
+
+    if ((item->sched_info.select_pumps & 0b01) != 0) {
+        pump.spin(0, false, false, 0);
+    }
+
+    if ((item->sched_info.select_pumps & 0b10) != 0) {
+        pump.spin(1, false, false, 0);
+    }
+
+    pump.set_sleep(true);
 }
 
 void sched_manager::schedule_dispatch_task(void* _ctx)
