@@ -283,6 +283,19 @@
             } catch (e) { alert('Network error'); }
         }
 
+        async function syncTime() {
+            const now = Math.floor(Date.now() / 1000);
+            console.log("Syncing time: " + now);
+            try {
+                const res = await fetch('/api/time', {
+                    method: 'POST',
+                    body: JSON.stringify({ now: now })
+                });
+                if (res.ok) console.log('Time synced');
+                else console.warn('Time sync failed');
+            } catch (e) { console.error('Time sync network error', e); }
+        }
+
         function updateForm() {
             const type = document.getElementById('sched-type').value;
             if (type === 'dow') {
@@ -297,6 +310,7 @@
         // Init
         fetchInfo();
         fetchSchedules();
+        setTimeout(syncTime, 3000);
     </script>
 </body>
 </html>

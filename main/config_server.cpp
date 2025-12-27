@@ -1,6 +1,7 @@
 #include <esp_log.h>
 #include <esp_app_desc.h>
 #include <esp_wifi.h>
+#include <sys/time.h>
 #include "config_server.hpp"
 
 #include "mjson.h"
@@ -69,6 +70,14 @@ esp_err_t config_server::init()
     };
     ret = ret ?: httpd_register_uri_handler(httpd, &get_fw_handler);
 
+    httpd_uri_t set_time_cfg = {
+        .uri = "/api/time",
+        .method = HTTP_POST,
+        .handler = set_time_handler,
+        .user_ctx = this,
+    };
+    ret = ret ?: httpd_register_uri_handler(httpd, &set_time_cfg);
+
     httpd_uri_t index_cfg = {
         .uri = "/",
         .method = HTTP_GET,
@@ -81,15 +90,19 @@ esp_err_t config_server::init()
         ESP_LOGE(TAG, "init: can't register handlers: 0x%x", ret);
     }
 
-
+    ESP_LOGI(TAG, "init: server started");
     return ret;
 }
 
 esp_err_t config_server::stop()
 {
-    esp_err_t ret = httpd_stop(httpd);
-    httpd = nullptr;
-    return ret;
+    if (httpd != nullptr) {
+        esp_err_t ret = httpd_stop(httpd);
+        httpd = nullptr;
+        return ret;
+    }
+
+    return ESP_OK;
 }
 
 esp_err_t config_server::get_schedule_handler(httpd_req_t* req)
@@ -97,15 +110,27 @@ esp_err_t config_server::get_schedule_handler(httpd_req_t* req)
     httpd_resp_set_type(req, "application/json");
 
     char query[64] = { 0 };
-    char out[152] = { 0 };
+    char out[256] = { 0 };
     if (httpd_req_get_url_query_len(req) > sizeof(query) - 1 || httpd_req_get_url_query_len(req) <= 1) {
-        sched_manager::instance().list_all_schedule_names_to_json(out, sizeof(out));
-        return httpd_resp_send(req, out, (ssize_t)strnlen(out, sizeof(out)));
+        esp_err_t ret = sched_manager::instance().list_all_schedule_names_to_json(out, sizeof(out));
+        if (ret == ESP_OK) {
+            return httpd_resp_send(req, out, (ssize_t)strnlen(out, sizeof(out)));
+        } else if (ret == ESP_ERR_NVS_NOT_FOUND) {
+            return httpd_resp_sendstr(req, "[]");
+        } else {
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Server error");
+        }
     }
 
     if (httpd_req_get_url_query_str(req, query, sizeof(query) - 1) != ESP_OK) {
-        sched_manager::instance().list_all_schedule_names_to_json(out, sizeof(out));
-        return httpd_resp_send(req, out, (ssize_t)strnlen(out, sizeof(out)));
+        esp_err_t ret = sched_manager::instance().list_all_schedule_names_to_json(out, sizeof(out));
+        if (ret == ESP_OK) {
+            return httpd_resp_send(req, out, (ssize_t)strnlen(out, sizeof(out)));
+        } else if (ret == ESP_ERR_NVS_NOT_FOUND) {
+            return httpd_resp_sendstr(req, "[]");
+        } else {
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Server error");
+        }
     }
 
     char name[16] = { 0 };
@@ -396,6 +421,45 @@ esp_err_t config_server::get_firmware_info_handler(httpd_req_t* req)
     }
 
     return httpd_resp_send(req, out, len);
+}
+
+esp_err_t config_server::set_time_handler(httpd_req_t* req)
+{
+    char buf[128] = { 0 };
+    int ret = 0, remaining = req->content_len;
+
+    if (remaining >= sizeof(buf)) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Content too long");
+        return ESP_FAIL;
+    }
+
+    if (remaining > 0) {
+        ret = httpd_req_recv(req, buf, remaining);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                httpd_resp_send_408(req);
+            }
+            return ESP_FAIL;
+        }
+        buf[ret] = '\0';
+    }
+
+    double now_ts = 0;
+    if (mjson_get_number(buf, ret, "$.now", &now_ts) == 0) {
+        ESP_LOGE(TAG, "set_time: failed to parse JSON: %s", buf);
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid JSON");
+        return ESP_OK;
+    }
+
+    struct timeval tv;
+    tv.tv_sec = (time_t)now_ts;
+    tv.tv_usec = 0;
+    settimeofday(&tv, NULL);
+
+    ESP_LOGI(TAG, "Time updated to %lld", (long long)tv.tv_sec);
+
+    httpd_resp_set_status(req, "202 Accepted");
+    return httpd_resp_sendstr(req, "OK");
 }
 
 esp_err_t config_server::index_handler(httpd_req_t* req)
