@@ -32,6 +32,22 @@ esp_err_t sched_manager::load_schedules()
 {
     nvs_iterator_t nvs_it = nullptr;
     esp_err_t ret = nvs_entry_find_in_handle(nvs, NVS_TYPE_BLOB, &nvs_it);
+    if (ret == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW(TAG, "load_sched: schedule entry is empty, skip loading");
+
+        for (size_t idx = 0; idx < task_items.size(); idx += 1) {
+            if (task_items[idx].scheduler != nullptr) {
+                esp_schedule_disable(task_items[idx].scheduler);
+                esp_schedule_delete(task_items[idx].scheduler);
+            }
+
+            memset(&task_items[idx], 0, sizeof(cron_task_item));
+        }
+
+        xQueueReset(dispatch_queue);
+        return ESP_OK;
+    }
+
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "load_sched: Can't open NVS handle: 0x%x", ret);
         return ret;

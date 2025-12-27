@@ -187,7 +187,7 @@ void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, i
         ESP_LOGI(TAG, "Got IP Gateway: " IPSTR, IP2STR(&event->ip_info.gw));
 
         xEventGroupSetBits(ctx->net_events, NET_CFG_STATE_GOT_IP);
-        esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG_MULTIPLE(2, ESP_SNTP_SERVER_LIST("pool.ntp.org", "time.apple.com"));
+        esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
         sntp_cfg.smooth_sync = false; // We want time sync as soon as possible
         sntp_cfg.sync_cb = sntp_sync_cb;
         ret = esp_netif_sntp_init(&sntp_cfg);

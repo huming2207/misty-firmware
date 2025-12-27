@@ -9,6 +9,11 @@
 
 esp_err_t config_server::init()
 {
+    if (httpd != nullptr) {
+        ESP_LOGW(TAG, "init: stopping old instance");
+        httpd_stop(httpd);
+    }
+
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     cfg.stack_size = 8192;
     esp_err_t ret = httpd_start(&httpd, &cfg);

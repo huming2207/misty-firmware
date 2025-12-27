@@ -11,13 +11,6 @@ esp_err_t air_sensor::init()
         return ret;
     }
 
-
-    ret = ret ?: pump.init();
-    if (ret != ESP_OK) {
-        ESP_LOGW(TAG, "init: can't init pump driver: 0x%x", ret);
-        return ret;
-    }
-
     for (size_t idx = 0; idx < MEAS_SLOTS; idx += 1) {
         temp_slots[idx] = -300; // Ambient temperature can't be lower than -273degC anyway
         humid_slots[idx] = -1; // RH is % so it can't be negative anyway
