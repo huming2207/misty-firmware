@@ -18,6 +18,7 @@ private:
     static esp_err_t set_wifi_config_handler(httpd_req_t *req);
     static esp_err_t get_wifi_config_handler(httpd_req_t *req);
     static esp_err_t get_firmware_info_handler(httpd_req_t *req);
+    static esp_err_t index_handler(httpd_req_t *req);
     httpd_handle_t httpd = nullptr;
     nvs_handle_t nvs = 0; // Not to be confused with scheduler's NVS - this is for misc configs (e.g. WiFi)
 

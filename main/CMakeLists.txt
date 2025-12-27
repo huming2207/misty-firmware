@@ -10,4 +10,5 @@ idf_component_register(
             esp_driver_ledc hal esp_timer nvs_flash esp_schedule
             esp_http_server esp_wifi esp_app_format
         INCLUDE_DIRS "." "./driver"
+        EMBED_TXTFILES "index.html"
 )

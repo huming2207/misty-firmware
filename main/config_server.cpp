@@ -7,6 +7,9 @@
 #include "net_configurator.hpp"
 #include "sched_manager.hpp"
 
+extern const char index_html_start[] asm("_binary_index_html_start");
+extern const char index_html_end[] asm("_binary_index_html_end");
+
 esp_err_t config_server::init()
 {
     if (httpd != nullptr) {
@@ -65,6 +68,14 @@ esp_err_t config_server::init()
         .user_ctx = this,
     };
     ret = ret ?: httpd_register_uri_handler(httpd, &get_fw_handler);
+
+    httpd_uri_t index_cfg = {
+        .uri = "/",
+        .method = HTTP_GET,
+        .handler = index_handler,
+        .user_ctx = this,
+    };
+    ret = ret ?: httpd_register_uri_handler(httpd, &index_cfg);
 
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "init: can't register handlers: 0x%x", ret);
@@ -385,4 +396,11 @@ esp_err_t config_server::get_firmware_info_handler(httpd_req_t* req)
     }
 
     return httpd_resp_send(req, out, len);
+}
+
+esp_err_t config_server::index_handler(httpd_req_t* req)
+{
+    httpd_resp_set_type(req, "text/html");
+    const size_t len = index_html_end - index_html_start;
+    return httpd_resp_send(req, index_html_start, (ssize_t)len);
 }

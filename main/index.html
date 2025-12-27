@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Irrigation Config</title>
+    <style>
+        :root {
+            --primary: #2e7d32;
+            --primary-dark: #1b5e20;
+            --bg: #f5f5f5;
+            --card-bg: #ffffff;
+            --text: #333;
+            --border: #ddd;
+        }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1, h2, h3 { color: var(--primary-dark); margin-top: 0; }
+        .card { background: var(--card-bg); border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 20px; margin-bottom: 20px; }
+        .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+        .col { flex: 1; min-width: 200px; }
+        label { display: block; margin-bottom: 5px; font-weight: 500; }
+        input[type="text"], input[type="password"], input[type="number"], select { width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 4px; box-sizing: border-box; }
+        button { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background: var(--primary-dark); }
+        button.danger { background: #d32f2f; }
+        button.danger:hover { background: #b71c1c; }
+        .checkbox-group { display: flex; flex-wrap: wrap; gap: 10px; }
+        .checkbox-group label { display: flex; align-items: center; gap: 5px; font-weight: normal; }
+        .checkbox-group input { width: auto; }
+        .sched-item { border-bottom: 1px solid var(--border); padding: 10px 0; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .sched-item:last-child { border-bottom: none; }
+        .sched-details { font-size: 0.9em; color: #666; }
+        .hidden { display: none; }
+        #fw-info { font-size: 0.8em; color: #666; text-align: right; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="fw-info">Loading FW Info...</div>
+        <h1>Irrigation Manager</h1>
+
+        <div class="card">
+            <h2>WiFi Settings</h2>
+            <div class="row">
+                <div class="col">
+                    <label>SSID</label>
+                    <input type="text" id="wifi-ssid" placeholder="Network Name">
+                </div>
+                <div class="col">
+                    <label>Password</label>
+                    <input type="password" id="wifi-pass" placeholder="Password">
+                </div>
+                <div style="flex: 0;">
+                    <label>&nbsp;</label>
+                    <button onclick="setWifi()">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>Current Schedules</h2>
+            <div id="schedule-list">Loading...</div>
+        </div>
+
+        <div class="card">
+            <h2>Add Schedule</h2>
+            <div class="row">
+                <div class="col">
+                    <label>Name</label>
+                    <input type="text" id="sched-name" maxlength="15" placeholder="e.g. Morning Mist">
+                </div>
+                <div class="col">
+                    <label>Type</label>
+                    <select id="sched-type" onchange="updateForm()">
+                        <option value="dow">Day of Week (Time)</option>
+                        <option value="sunrise">Sunrise</option>
+                        <option value="sunset">Sunset</option>
+                    </select>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <label>Pumps</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" id="pump-0" value="1"> Pump 1</label>
+                    <label><input type="checkbox" id="pump-1" value="2"> Pump 2</label>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <label>Days of Week</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" class="dow-chk" value="1"> Sun</label>
+                    <label><input type="checkbox" class="dow-chk" value="2"> Mon</label>
+                    <label><input type="checkbox" class="dow-chk" value="4"> Tue</label>
+                    <label><input type="checkbox" class="dow-chk" value="8"> Wed</label>
+                    <label><input type="checkbox" class="dow-chk" value="16"> Thu</label>
+                    <label><input type="checkbox" class="dow-chk" value="32"> Fri</label>
+                    <label><input type="checkbox" class="dow-chk" value="64"> Sat</label>
+                </div>
+            </div>
+
+            <div class="row" id="time-input" style="margin-top: 15px;">
+                <div class="col">
+                    <label>Hour (0-23)</label>
+                    <input type="number" id="sched-hour" min="0" max="23" value="8">
+                </div>
+                <div class="col">
+                    <label>Minute (0-59)</label>
+                    <input type="number" id="sched-min" min="0" max="59" value="0">
+                </div>
+            </div>
+
+            <div class="row hidden" id="offset-input" style="margin-top: 15px;">
+                <div class="col">
+                    <label>Offset (Minutes, +/-)</label>
+                    <input type="number" id="sched-offset" value="0">
+                </div>
+            </div>
+
+            <div class="row" style="margin-top: 15px;">
+                <div class="col">
+                    <label>Dry Duration (ms)</label>
+                    <input type="number" id="dur-dry" value="5000">
+                </div>
+                <div class="col">
+                    <label>Moderate Duration (ms)</label>
+                    <input type="number" id="dur-mod" value="5000">
+                </div>
+                <div class="col">
+                    <label>Wet Duration (ms)</label>
+                    <input type="number" id="dur-wet" value="5000">
+                </div>
+            </div>
+
+            <div style="margin-top: 20px; text-align: right;">
+                <button onclick="addSchedule()">Add Schedule</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_SCHED = '/api/schedule';
+        const API_WIFI = '/api/wifi';
+        const API_FW = '/api/fwinfo';
+
+        async function fetchInfo() {
+            try {
+                const res = await fetch(API_FW);
+                const data = await res.json();
+                document.getElementById('fw-info').textContent = `SDK: ${data.sdk} | FW: ${data.fw} | Built: ${data.compDate}`;
+            } catch (e) { console.error(e); }
+        }
+
+        async function fetchSchedules() {
+            const listEl = document.getElementById('schedule-list');
+            listEl.innerHTML = 'Loading...';
+            try {
+                const res = await fetch(API_SCHED);
+                const names = await res.json();
+                listEl.innerHTML = '';
+                
+                if (names.length === 0) {
+                    listEl.innerHTML = '<div>No schedules found.</div>';
+                    return;
+                }
+
+                for (const name of names) {
+                    // Fetch details for each
+                    try {
+                        const dRes = await fetch(`${API_SCHED}?name=${encodeURIComponent(name)}`);
+                        if (!dRes.ok) continue;
+                        const d = await dRes.json();
+                        renderScheduleItem(d, listEl);
+                    } catch (e) { console.error(e); }
+                }
+            } catch (e) {
+                listEl.innerHTML = 'Error loading schedules.';
+                console.error(e);
+            }
+        }
+
+        function renderScheduleItem(data, container) {
+            const el = document.createElement('div');
+            el.className = 'sched-item';
+            
+            let timeStr = '';
+            if (data.type === 0 || data.type === 'dow') { // Assuming 0 is DoW, but checking both just in case
+                timeStr = `@ ${String(data.h).padStart(2,'0')}:${String(data.m).padStart(2,'0')}`;
+            } else {
+                const typeName = data.type === 1 ? 'Sunrise' : (data.type === 2 ? 'Sunset' : 'SunEvent');
+                const sign = data.offset >= 0 ? '+' : '';
+                timeStr = `@ ${typeName} ${sign}${data.offset}m`;
+            }
+
+            // Decode DoW
+            const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            let dayStr = [];
+            for(let i=0; i<7; i++) {
+                if ((data.dow >> i) & 1) dayStr.push(days[i]);
+            }
+
+            // Decode Pumps
+            let pumpStr = [];
+            if (data.pump & 1) pumpStr.push('P1');
+            if (data.pump & 2) pumpStr.push('P2');
+
+            el.innerHTML = `
+                <div>
+                    <strong>${data.name}</strong> 
+                    <span class="sched-details">
+                        ${pumpStr.join('+')} | ${dayStr.join(', ')} ${timeStr} 
+                        | Dur: [${data.duration.join(', ')}] ms
+                    </span>
+                </div>
+                <button class="danger" onclick="deleteSchedule('${data.name}')">Delete</button>
+            `;
+            container.appendChild(el);
+        }
+
+        async function addSchedule() {
+            const name = document.getElementById('sched-name').value;
+            if (!name) return alert('Name required');
+
+            const type = document.getElementById('sched-type').value;
+            
+            let pump = 0;
+            if (document.getElementById('pump-0').checked) pump |= 1;
+            if (document.getElementById('pump-1').checked) pump |= 2;
+            if (pump === 0) return alert('Select at least one pump');
+
+            let dow = 0;
+            document.querySelectorAll('.dow-chk:checked').forEach(el => dow |= parseInt(el.value));
+            if (dow === 0) return alert('Select at least one day');
+
+            const durd = document.getElementById('dur-dry').value;
+            const durm = document.getElementById('dur-mod').value;
+            const durw = document.getElementById('dur-wet').value;
+
+            let query = `name=${encodeURIComponent(name)}&type=${type}&pump=${pump}&dow=${dow}&durd=${durd}&durm=${durm}&durw=${durw}`;
+
+            if (type === 'dow') {
+                const h = document.getElementById('sched-hour').value;
+                const m = document.getElementById('sched-min').value;
+                query += `&hour=${h}&min=${m}`;
+            } else {
+                const off = document.getElementById('sched-offset').value;
+                query += `&off=${off}`;
+            }
+
+            try {
+                const res = await fetch(`${API_SCHED}?${query}`, { method: 'POST' });
+                if (res.ok) {
+                    alert('Added!');
+                    fetchSchedules();
+                } else {
+                    alert('Error adding schedule');
+                }
+            } catch (e) {
+                alert('Network error');
+            }
+        }
+
+        async function deleteSchedule(name) {
+            if (!confirm(`Delete ${name}?`)) return;
+            try {
+                const res = await fetch(`${API_SCHED}?name=${encodeURIComponent(name)}`, { method: 'DELETE' });
+                if (res.ok) fetchSchedules();
+                else alert('Error deleting');
+            } catch (e) { alert('Network error'); }
+        }
+
+        async function setWifi() {
+            const ssid = document.getElementById('wifi-ssid').value;
+            const pwd = document.getElementById('wifi-pass').value;
+            if (!ssid) return alert('SSID required');
+            
+            try {
+                const res = await fetch(`${API_WIFI}?ssid=${encodeURIComponent(ssid)}&pwd=${encodeURIComponent(pwd)}`, { method: 'POST' });
+                if (res.ok) alert('WiFi updated. Device may reboot/reconnect.');
+                else alert('Error setting WiFi');
+            } catch (e) { alert('Network error'); }
+        }
+
+        function updateForm() {
+            const type = document.getElementById('sched-type').value;
+            if (type === 'dow') {
+                document.getElementById('time-input').classList.remove('hidden');
+                document.getElementById('offset-input').classList.add('hidden');
+            } else {
+                document.getElementById('time-input').classList.add('hidden');
+                document.getElementById('offset-input').classList.remove('hidden');
+            }
+        }
+
+        // Init
+        fetchInfo();
+        fetchSchedules();
+    </script>
+</body>
+</html>
