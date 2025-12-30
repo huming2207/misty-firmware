@@ -172,7 +172,7 @@ esp_err_t sched_manager::set_schedule(const char* name, const cron_store_entry* 
 esp_err_t sched_manager::get_schedule(const char* name, cron_store_entry* entry_out) const
 {
     size_t len = sizeof(cron_store_entry);
-    esp_err_t ret = nvs_get_blob(nvs, name, &entry_out, &len);
+    esp_err_t ret = nvs_get_blob(nvs, name, entry_out, &len);
     return ret;
 }
 
