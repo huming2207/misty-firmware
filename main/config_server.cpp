@@ -203,6 +203,8 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid schedule type");
     }
 
+    ESP_LOGI(TAG, "add_sched: type=%u", entry.schedule_type);
+
     // Pump selection
     memset(val, 0, sizeof(val));
     ret = httpd_query_key_value(query, "pump", val, sizeof(val) - 1);
@@ -285,7 +287,7 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
         }
 
         auto offset = (int16_t)strtol(val, nullptr, 10);
-        ESP_LOGI(TAG, "add_sched: sun.offset=%s parsed to %ld", val, dow);
+        ESP_LOGI(TAG, "add_sched: sun.offset=%s parsed to %ld", val, offset);
 
         entry.offset_minute = offset;
     }
@@ -327,7 +329,7 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
     auto wet_dur = (uint32_t)strtol(val, nullptr, 10);
     ESP_LOGI(TAG, "add_sched: wet duration=%s parsed to %ld", val, wet_dur);
 
-    entry.duration_ms[sched_manager::PROFILE_MODERATE] = wet_dur;
+    entry.duration_ms[sched_manager::PROFILE_WET] = wet_dur;
 
     memset(val, 0, sizeof(val));
     ret = httpd_query_key_value(query, "name", val, sizeof(val) - 1);
