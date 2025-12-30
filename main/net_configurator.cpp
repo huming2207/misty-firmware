@@ -202,6 +202,7 @@ void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, i
 
         xEventGroupSetBits(ctx->net_events, NET_CFG_STATE_GOT_IP);
         esp_netif_tcpip_exec(lwip_sntp_stop_cb, nullptr);
+        esp_netif_sntp_deinit();
         vTaskDelay(pdMS_TO_TICKS(1000));
         esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
         sntp_cfg.smooth_sync = false; // We want time sync as soon as possible
@@ -225,16 +226,13 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
             esp_wifi_stop();
 
             esp_netif_tcpip_exec(lwip_sntp_stop_cb, nullptr);
+            esp_netif_sntp_deinit();
             ctx->server.stop();
             break;
         }
 
         case NET_CFG_EVENT_WIFI_START_MANUAL: {
             ESP_LOGI(TAG, "WiFi start - manual");
-            ret = ctx->load_wifi();
-            if (ret != ESP_OK) {
-                ESP_LOGI(TAG, "WiFi start failed: 0x%x", ret);
-            }
 
             if (xTimerIsTimerActive(ctx->wifi_off_timer) != pdFALSE) {
                 if (xTimerStop(ctx->wifi_off_timer, pdMS_TO_TICKS(3000)) != pdPASS) {
@@ -248,6 +246,12 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
                 esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
             }
 
+            ctx->manual_config = true;
+            ret = ctx->load_wifi();
+            if (ret != ESP_OK) {
+                ESP_LOGI(TAG, "WiFi start failed: 0x%x", ret);
+            }
+
             ctx->server.init();
             break;
         }
@@ -255,6 +259,7 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
             ESP_LOGI(TAG, "WiFi start - auto sync");
 
             if (wifi_has_station_config()) {
+                ctx->manual_config = false;
                 ret = ctx->load_wifi();
                 if (ret != ESP_OK) {
                     ESP_LOGI(TAG, "sync: WiFi start failed: 0x%x", ret);
@@ -270,7 +275,11 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
             ESP_LOGW(TAG, "WIFI Sync done");
             xEventGroupSetBits(ctx->net_events, NET_CFG_STATE_SYNC_DONE);
             esp_netif_tcpip_exec(lwip_sntp_stop_cb, nullptr);
-            esp_wifi_stop(); // Just stop for now
+            esp_netif_sntp_deinit();
+            if (!ctx->manual_config) {
+                esp_wifi_stop(); // Just stop for now
+            }
+
             break;
         }
         default: {

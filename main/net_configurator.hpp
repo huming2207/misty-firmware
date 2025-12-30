@@ -59,6 +59,7 @@ private:
     static void wifi_sync_timer_cb(TimerHandle_t timer);
     static void sntp_sync_cb(timeval *tv);
 
+    bool manual_config = false;
     nvs_handle_t nvs = 0; // Not to be confused with scheduler's NVS - this is for WiFi and network
     uint32_t retry_cnt = 0;
     EventGroupHandle_t net_events = nullptr;
