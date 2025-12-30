@@ -6,7 +6,6 @@
 #include <freertos/timers.h>
 #include <freertos/event_groups.h>
 
-#include "drv8833.hpp"
 #include "hdc2080.hpp"
 
 #include "pin_defs.hpp"

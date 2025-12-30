@@ -1,11 +1,9 @@
 #pragma once
 
-#include <deque>
 #include <freertos/FreeRTOS.h>
 #include <freertos/queue.h>
 #include <esp_schedule.h>
 
-#include "drv8833.hpp"
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "nvs_handle.hpp"
