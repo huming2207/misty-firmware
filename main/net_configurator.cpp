@@ -4,6 +4,8 @@
 #include "net_configurator.hpp"
 
 #include <esp_mac.h>
+
+#include "config_server.hpp"
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
@@ -59,7 +61,7 @@ esp_err_t net_configurator::init()
         ESP_LOGW(TAG, "init: skip starting wifi sync timer cuz no config");
     }
 
-    return ESP_OK;
+    return load_wifi();
 }
 
 esp_err_t net_configurator::load_wifi()
@@ -96,6 +98,7 @@ esp_err_t net_configurator::load_wifi()
         }
 
         ESP_LOGI(TAG, "load_wifi: WiFi AP started");
+        server.init();
         xEventGroupSetBits(net_events, NET_CFG_STATE_WIFI_AP_ENABLED);
     } else {
         ESP_LOGI(TAG, "load_wifi: has valid config for SSID %s", wifi_cfg.sta.ssid);
@@ -207,6 +210,7 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
         case NET_CFG_EVENT_FORCE_WIFI_STOP: {
             ESP_LOGI(TAG, "WiFi stop requested");
             esp_wifi_stop();
+            ctx->server.stop();
             break;
         }
 
@@ -229,6 +233,7 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
                 esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_FORCE_WIFI_STOP, nullptr, 0, pdMS_TO_TICKS(3000));
             }
 
+            ctx->server.init();
             break;
         }
         case NET_CFG_EVENT_WIFI_START_SYNC: {
