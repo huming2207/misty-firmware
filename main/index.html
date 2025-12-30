@@ -181,40 +181,69 @@
             }
         }
 
+        function getShiftedDow(dow, shift) {
+            let newDow = 0;
+            for (let i = 0; i < 7; i++) {
+                if ((dow >> i) & 1) {
+                    let newIdx = i + shift;
+                    if (newIdx < 0) newIdx = 6;
+                    if (newIdx > 6) newIdx = 0;
+                    newDow |= (1 << newIdx);
+                }
+            }
+            return newDow;
+        }
+
         function renderScheduleItem(data, container) {
             const el = document.createElement('div');
             el.className = 'sched-item';
             
+            // Clone data for display purposes
+            let dData = JSON.parse(JSON.stringify(data));
+
+            if (dData.type === 0 || dData.type === 'dow') {
+                const offset = new Date().getTimezoneOffset();
+                let total = dData.h * 60 + dData.m - offset; // Local = UTC - (UTC-Local)
+                let shift = 0;
+                
+                if (total < 0) { total += 1440; shift = -1; }
+                else if (total >= 1440) { total -= 1440; shift = 1; }
+                
+                dData.h = Math.floor(total / 60);
+                dData.m = total % 60;
+                dData.dow = getShiftedDow(dData.dow, shift);
+            }
+
             let timeStr = '';
-            if (data.type === 0 || data.type === 'dow') { // Assuming 0 is DoW, but checking both just in case
-                timeStr = `@ ${String(data.h).padStart(2,'0')}:${String(data.m).padStart(2,'0')}`;
+            if (dData.type === 0 || dData.type === 'dow') {
+                timeStr = `@ ${String(dData.h).padStart(2,'0')}:${String(dData.m).padStart(2,'0')}`;
             } else {
-                const typeName = data.type === 1 ? 'Sunrise' : (data.type === 2 ? 'Sunset' : 'SunEvent');
-                const sign = data.offset >= 0 ? '+' : '';
-                timeStr = `@ ${typeName} ${sign}${data.offset}m`;
+                const typeName = dData.type === 1 ? 'Sunrise' : (dData.type === 2 ? 'Sunset' : 'SunEvent');
+                const sign = dData.offset >= 0 ? '+' : '';
+                timeStr = `@ ${typeName} ${sign}${dData.offset}m`;
             }
 
             // Decode DoW
             const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
             let dayStr = [];
             for(let i=0; i<7; i++) {
-                if ((data.dow >> i) & 1) dayStr.push(days[i]);
+                if ((dData.dow >> i) & 1) dayStr.push(days[i]);
             }
 
             // Decode Pumps
             let pumpStr = [];
-            if (data.pump & 1) pumpStr.push('P1');
-            if (data.pump & 2) pumpStr.push('P2');
+            if (dData.pump & 1) pumpStr.push('P1');
+            if (dData.pump & 2) pumpStr.push('P2');
 
             el.innerHTML = `
                 <div>
-                    <strong>${data.name}</strong> 
+                    <strong>${dData.name}</strong> 
                     <span class="sched-details">
                         ${pumpStr.join('+')} | ${dayStr.join(', ')} ${timeStr} 
-                        | Dur: [${data.duration.join(', ')}] ms
+                        | Dur: [${dData.duration.join(', ')}] ms
                     </span>
                 </div>
-                <button class="danger" onclick="deleteSchedule('${data.name}')">Delete</button>
+                <button class="danger" onclick="deleteSchedule('${dData.name}')">Delete</button>
             `;
             container.appendChild(el);
         }
@@ -238,14 +267,32 @@
             const durm = document.getElementById('dur-mod').value;
             const durw = document.getElementById('dur-wet').value;
 
+            let h = 0, m = 0, off = 0;
+
+            if (type === 'dow') {
+                h = parseInt(document.getElementById('sched-hour').value);
+                m = parseInt(document.getElementById('sched-min').value);
+                
+                // Local to UTC
+                const offset = new Date().getTimezoneOffset(); // UTC - Local
+                let total = h * 60 + m + offset;
+                let shift = 0;
+                
+                if (total < 0) { total += 1440; shift = -1; }
+                else if (total >= 1440) { total -= 1440; shift = 1; }
+                
+                h = Math.floor(total / 60);
+                m = total % 60;
+                dow = getShiftedDow(dow, shift);
+            } else {
+                off = document.getElementById('sched-offset').value;
+            }
+
             let query = `name=${encodeURIComponent(name)}&type=${type}&pump=${pump}&dow=${dow}&durd=${durd}&durm=${durm}&durw=${durw}`;
 
             if (type === 'dow') {
-                const h = document.getElementById('sched-hour').value;
-                const m = document.getElementById('sched-min').value;
                 query += `&hour=${h}&min=${m}`;
             } else {
-                const off = document.getElementById('sched-offset').value;
                 query += `&off=${off}`;
             }
 
@@ -278,8 +325,11 @@
             
             try {
                 const res = await fetch(`${API_WIFI}?ssid=${encodeURIComponent(ssid)}&pwd=${encodeURIComponent(pwd)}`, { method: 'POST' });
-                if (res.ok) alert('WiFi updated. Device may reboot/reconnect.');
-                else alert('Error setting WiFi');
+                if (res.ok) {
+                    window.alert('WiFi configuration successful! The device is now applying the settings and may reboot.');
+                } else {
+                    alert('Error setting WiFi');
+                }
             } catch (e) { alert('Network error'); }
         }
 
