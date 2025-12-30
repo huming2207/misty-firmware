@@ -5,7 +5,9 @@
 
 #include "air_sensor.hpp"
 #include "net_configurator.hpp"
+#include "pump_manager.hpp"
 #include "sched_manager.hpp"
+#include "pin_defs.hpp"
 
 #define TAG "main"
 
@@ -28,6 +30,10 @@ extern "C" void app_main(void)
 
     ESP_ERROR_CHECK(net_configurator::instance().init());
     ESP_LOGI(TAG, "Net config loaded");
+
+    ESP_ERROR_CHECK(misty::setup_input_interrupts());
+    ESP_ERROR_CHECK(pump_manager::instance().init());
+    ESP_LOGI(TAG, "Pump loaded");
 
     ESP_ERROR_CHECK(sched_manager::instance().init());
     ESP_LOGI(TAG, "Schedule manager loaded");

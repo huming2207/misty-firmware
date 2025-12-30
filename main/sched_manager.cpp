@@ -2,6 +2,7 @@
 
 #include "air_sensor.hpp"
 #include "esp_log.h"
+#include "pump_manager.hpp"
 
 esp_err_t sched_manager::init()
 {
@@ -174,8 +175,8 @@ esp_err_t sched_manager::get_schedule(const char* name, cron_store_entry* entry_
 
 esp_err_t sched_manager::list_all_schedule_names_to_json(char* name_out, size_t len) const
 {
-    if (name_out == nullptr || len < ((NVS_KEY_NAME_MAX_SIZE + 3) * task_items.size() + 1)) {
-        ESP_LOGE(TAG, "Name list buffer too short");
+    if (const size_t expected_len = (NVS_KEY_NAME_MAX_SIZE + 3) * task_items.size() + 1; name_out == nullptr || len < expected_len) {
+        ESP_LOGE(TAG, "Name list buffer too short, name %p, len %u vs %u", name_out, len, expected_len);
         return ESP_ERR_NO_MEM;
     }
 
@@ -254,32 +255,19 @@ void sched_manager::schedule_dispatcher(cron_task_item* item)
         }
     }
 
-    pump.set_sleep(false);
-    if ((item->sched_info.select_pumps & 0b01) != 0) {
-        pump.spin(0, false, false, 100);
-    }
-
-    if ((item->sched_info.select_pumps & 0b10) != 0) {
-        pump.spin(1, false, false, 100);
-    }
-
     uint32_t duration_ms = item->sched_info.duration_ms[profile];
     if (duration_ms > 3600*1000) {
         ESP_LOGW(TAG, "Duration is too long, set back to 1 hour");
         duration_ms = 3600*1000;
     }
-
-    vTaskDelay(pdMS_TO_TICKS(duration_ms));
-
+    
     if ((item->sched_info.select_pumps & 0b01) != 0) {
-        pump.spin(0, false, false, 0);
+        pump_manager::instance().run_a(duration_ms);
     }
 
     if ((item->sched_info.select_pumps & 0b10) != 0) {
-        pump.spin(1, false, false, 0);
+        pump_manager::instance().run_b(duration_ms);
     }
-
-    pump.set_sleep(true);
 }
 
 void sched_manager::schedule_dispatch_task(void* _ctx)

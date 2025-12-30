@@ -8,6 +8,7 @@
 #include <esp_err.h>
 
 
+#include "config_server.hpp"
 #include "esp_wifi_types_generic.h"
 #include "nvs.h"
 
@@ -62,6 +63,7 @@ private:
     EventGroupHandle_t net_events = nullptr;
     TimerHandle_t wifi_off_timer = nullptr;
     TimerHandle_t wifi_sync_timer = nullptr;
+    config_server server = {};
     static constexpr uint32_t MAX_RETRY_COUNT = 5;
     static constexpr uint32_t WIFI_MANUAL_ENABLE_TIMEOUT_TICKS = pdMS_TO_TICKS(600*1000); // 10 minutes
     static constexpr uint32_t WIFI_SYNC_PERIOD_TICKS = pdMS_TO_TICKS(7200*1000); // 120 minutes

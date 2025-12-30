@@ -82,8 +82,6 @@ private:
 
     // Because I'm targeting ESP32-C6 so better off use array instead of vector/deque to save heap
     std::array<cron_task_item, 10> task_items = {};
-    drv8833 pump = drv8833(misty::PUMP_AIN1_PIN, misty::PUMP_AIN2_PIN, misty::PUMP_BIN1_PIN, misty::PUMP_BIN2_PIN,
-                            misty::PUMP_FAULT_PIN, misty::PUMP_SLEEP_PIN);
 
 
     static const constexpr char TAG[] = "cronman";

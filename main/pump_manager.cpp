@@ -46,7 +46,7 @@ esp_err_t pump_manager::init()
         return ESP_ERR_NO_MEM;
     }
 
-    motor_b_off_timer = xTimerCreate("motor_a_off", 1, pdFALSE, this, motor_a_off_timer_cb);
+    motor_b_off_timer = xTimerCreate("motor_b_off", 1, pdFALSE, this, motor_a_off_timer_cb);
     if (motor_b_off_timer == nullptr) {
         ESP_LOGE(TAG, "Failed to create motor B off timer");
         return ESP_ERR_NO_MEM;
