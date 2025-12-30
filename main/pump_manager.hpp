@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <freertos/FreeRTOS.h>
 #include <freertos/timers.h>
 #include <esp_err.h>
@@ -24,8 +25,7 @@ public:
     {
         PUMP_A_OFF_TIMER_TRIGGERED = 0,
         PUMP_B_OFF_TIMER_TRIGGERED,
-        PUMP_FAULT_TRIGGERED,
-        PUMP_TRIG_BUTTON_PRESSED,
+        PUMP_FAULT_TRIGGERED
     };
 
 private:
@@ -33,11 +33,13 @@ private:
 
 public:
     esp_err_t init();
-    esp_err_t run_a(uint32_t duration_ms) const;
-    esp_err_t run_b(uint32_t duration_ms) const;
+    esp_err_t run_a(uint32_t duration_ms);
+    esp_err_t run_b(uint32_t duration_ms);
 
 private:
     bool motor_trig_enabled = false;
+    std::atomic_bool motor_a_running = false;
+    std::atomic_bool motor_b_running = false;
     bdc_motor_handle_t motor_a = nullptr;
     bdc_motor_handle_t motor_b = nullptr;
     TimerHandle_t motor_a_off_timer = nullptr;

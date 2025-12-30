@@ -3,6 +3,8 @@
 
 #include "esp_log.h"
 #include "pin_defs.hpp"
+#include "hal/gpio_ll.h"
+#include "soc/gpio_struct.h"
 
 ESP_EVENT_DEFINE_BASE(MISTY_PUMP_EVENTS);
 
@@ -50,7 +52,7 @@ esp_err_t pump_manager::init()
         return ESP_ERR_NO_MEM;
     }
 
-    gpio_config_t config = {
+    gpio_config_t pump_fault_cfg = {
         .pin_bit_mask = (1ULL << misty::PUMP_FAULT_PIN),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
@@ -58,7 +60,21 @@ esp_err_t pump_manager::init()
         .intr_type = GPIO_INTR_NEGEDGE
     };
 
-    ret = gpio_config(&config);
+    ret = gpio_config(&pump_fault_cfg);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "GPIO interrupt config failed");
+        return ret;
+    }
+
+    gpio_config_t pump_sleep_cfg = {
+        .pin_bit_mask = (1ULL << misty::PUMP_SLEEP_PIN),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_ENABLE,
+        .intr_type = GPIO_INTR_DISABLE,
+    };
+
+    ret = gpio_config(&pump_sleep_cfg);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "GPIO interrupt config failed");
         return ret;
@@ -71,8 +87,11 @@ esp_err_t pump_manager::init()
     return ret;
 }
 
-esp_err_t pump_manager::run_a(uint32_t duration_ms) const
+esp_err_t pump_manager::run_a(uint32_t duration_ms)
 {
+    gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 1);
+    motor_a_running = true;
+
     if (xTimerChangePeriod(motor_a_off_timer, pdMS_TO_TICKS(duration_ms), pdMS_TO_TICKS(10000)) == pdFAIL) {
         ESP_LOGE(TAG, "Can't configure timer A!");
         return ESP_ERR_TIMEOUT;
@@ -89,8 +108,11 @@ esp_err_t pump_manager::run_a(uint32_t duration_ms) const
     return ret;
 }
 
-esp_err_t pump_manager::run_b(uint32_t duration_ms) const
+esp_err_t pump_manager::run_b(uint32_t duration_ms)
 {
+    gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 1);
+    motor_b_running = true;
+
     if (xTimerChangePeriod(motor_b_off_timer, pdMS_TO_TICKS(duration_ms), pdMS_TO_TICKS(10000)) == pdFAIL) {
         ESP_LOGE(TAG, "Can't configure timer!");
         return ESP_ERR_TIMEOUT;
@@ -126,6 +148,12 @@ void pump_manager::pump_event_handler(void* _ctx, esp_event_base_t evt_base, int
                 ESP_LOGI(TAG, "Pump A stop timer triggered, stopping");
                 bdc_motor_brake(pump.motor_a);
                 bdc_motor_disable(pump.motor_a);
+                pump.motor_a_running = false;
+
+                if (!pump.motor_a_running && !pump.motor_b_running) {
+                    gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 0);
+                }
+
                 break;
             }
 
@@ -133,6 +161,12 @@ void pump_manager::pump_event_handler(void* _ctx, esp_event_base_t evt_base, int
                 ESP_LOGI(TAG, "Pump B stop timer triggered, stopping");
                 bdc_motor_brake(pump.motor_b);
                 bdc_motor_disable(pump.motor_b);
+                pump.motor_b_running = false;
+
+                if (!pump.motor_a_running && !pump.motor_b_running) {
+                    gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 0);
+                }
+
                 break;
             }
 
@@ -152,10 +186,13 @@ void pump_manager::pump_event_handler(void* _ctx, esp_event_base_t evt_base, int
             }
         }
     } else if (evt_base == MISTY_IO_EVENTS) {
-        if (evt_id == PUMP_TRIG_BUTTON_PRESSED) {
+        if (evt_id == misty::PUMP_TRIG_BUTTON_PRESSED) {
             pump.motor_trig_enabled = !pump.motor_trig_enabled;
             if (pump.motor_trig_enabled) {
                 ESP_LOGW(TAG, "Pump test enabled");
+                pump.motor_a_running = true;
+                pump.motor_b_running = true;
+                gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 1);
                 bdc_motor_enable(pump.motor_a);
                 bdc_motor_forward(pump.motor_a);
                 bdc_motor_set_speed(pump.motor_a, 100);
@@ -170,6 +207,10 @@ void pump_manager::pump_event_handler(void* _ctx, esp_event_base_t evt_base, int
 
                 bdc_motor_brake(pump.motor_b);
                 bdc_motor_disable(pump.motor_b);
+
+                pump.motor_a_running = false;
+                pump.motor_b_running = false;
+                gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 0);
             }
         }
     }
