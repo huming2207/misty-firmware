@@ -15,7 +15,7 @@ esp_err_t sched_manager::init()
     // We don't use NVS functionality provided by ESP schedule because it can't save additional info
     // Instead we do it on our on, so that we can save whatever we want!
     esp_schedule_init(false, nullptr, nullptr);
-    dispatch_queue = xQueueCreate(3, sizeof(void *));
+    dispatch_queue = xQueueCreate(3, sizeof(uint32_t));
     if (dispatch_queue == nullptr) {
         ESP_LOGE(TAG, "init: can't create dispatch queue");
         return ESP_ERR_NO_MEM;
@@ -100,7 +100,7 @@ esp_err_t sched_manager::load_schedules()
         strncpy(sched_cfg.name, entry.key, sizeof(cron_task_item::name) - 1);
         sched_cfg.name[sizeof(cron_task_item::name) - 1] = '\0';
 
-        sched_cfg.priv_data = &task_items[item_idx];
+        sched_cfg.priv_data = (void *)item_idx;
         sched_cfg.validity.end_time = 0;
         sched_cfg.validity.start_time = 0;
         sched_cfg.trigger_cb = schedule_trigger_callback;
@@ -160,7 +160,7 @@ esp_err_t sched_manager::set_schedule(const char* name, const cron_store_entry* 
     }
 
     if (ret == ESP_OK) {
-        ESP_LOGW(TAG, "set: item %s already exist", nvs);
+        ESP_LOGW(TAG, "set: item %s already exist", name);
         return ESP_ERR_INVALID_STATE;
     } else {
         ESP_LOGE(TAG, "set: NVS error 0x%x", ret);
@@ -235,7 +235,7 @@ esp_err_t sched_manager::delete_schedule(const char* name) const
     return nvs_erase_key(nvs, name);
 }
 
-void sched_manager::schedule_dispatcher(cron_task_item* item)
+void sched_manager::schedule_dispatcher(size_t idx)
 {
     auto &sensor = air_sensor::instance();
     bool sensor_has_reading = sensor.has_valid_reading();
@@ -258,17 +258,17 @@ void sched_manager::schedule_dispatcher(cron_task_item* item)
         }
     }
 
-    uint32_t duration_ms = item->sched_info.duration_ms[profile];
+    uint32_t duration_ms = task_items[idx].sched_info.duration_ms[profile];
     if (duration_ms > 3600*1000) {
         ESP_LOGW(TAG, "Duration is too long, set back to 1 hour");
         duration_ms = 3600*1000;
     }
 
-    if ((item->sched_info.select_pumps & 0b01) != 0) {
+    if ((task_items[idx].sched_info.select_pumps & 0b01) != 0) {
         pump_manager::instance().run_a(duration_ms);
     }
 
-    if ((item->sched_info.select_pumps & 0b10) != 0) {
+    if ((task_items[idx].sched_info.select_pumps & 0b10) != 0) {
         pump_manager::instance().run_b(duration_ms);
     }
 }
@@ -278,14 +278,20 @@ void sched_manager::schedule_dispatch_task(void* _ctx)
     auto &mgr = instance();
 
     while (true) {
-        cron_task_item *task_item = nullptr;
-        if (xQueueReceive(mgr.dispatch_queue, &task_item, portMAX_DELAY) != pdTRUE) {
+        size_t idx = SIZE_MAX;
+        if (xQueueReceive(mgr.dispatch_queue, &idx, portMAX_DELAY) != pdTRUE) {
             ESP_LOGW(TAG, "dispatch_task: nothing to receive??");
             vTaskDelay(1);
             return;
         }
 
-        mgr.schedule_dispatcher(task_item);
+        if (idx < 0 || idx > mgr.task_items.size()) {
+            ESP_LOGW(TAG, "Invalid index value, skipping");
+            return;
+        }
+
+        ESP_LOGI(TAG, "dispatch_task: got %u", idx);
+        mgr.schedule_dispatcher(idx);
         vTaskDelay(1);
     }
 }
@@ -293,5 +299,7 @@ void sched_manager::schedule_dispatch_task(void* _ctx)
 void sched_manager::schedule_trigger_callback(esp_schedule_handle_t handle, void* ctx) // ctx is the item!!
 {
     auto &mgr = instance();
-    xQueueSend(mgr.dispatch_queue, ctx, portMAX_DELAY);
+    auto idx = reinterpret_cast<size_t>(ctx);
+    ESP_LOGI(TAG, "trigger: enqueue %p %u", ctx, idx);
+    xQueueSend(mgr.dispatch_queue, &idx, portMAX_DELAY);
 }

@@ -71,7 +71,7 @@ public:
 
 private:
     sched_manager() = default;
-    void schedule_dispatcher(cron_task_item *item);
+    void schedule_dispatcher(size_t idx);
     static void schedule_dispatch_task(void *_ctx);
     static void schedule_trigger_callback(esp_schedule_handle_t handle, void *ctx);
 
