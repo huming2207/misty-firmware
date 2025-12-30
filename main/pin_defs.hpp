@@ -35,8 +35,8 @@ namespace misty
     };
 
     esp_err_t setup_input_interrupts();
-    static void IRAM_ATTR charging_handler(void *_ctx);
-    static void IRAM_ATTR chg_done_handler(void *_ctx);
-    static void IRAM_ATTR config_btn_handler(void *_ctx);
-    static void IRAM_ATTR pump_trig_btn_handler(void *_ctx);
+    void IRAM_ATTR charging_handler(void *_ctx);
+    void IRAM_ATTR chg_done_handler(void *_ctx);
+    void IRAM_ATTR config_btn_handler(void *_ctx);
+    void IRAM_ATTR pump_trig_btn_handler(void *_ctx);
 }

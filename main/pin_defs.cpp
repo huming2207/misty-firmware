@@ -36,7 +36,7 @@ esp_err_t misty::setup_input_interrupts()
     return ESP_OK;
 }
 
-static void IRAM_ATTR misty::charging_handler(void* _ctx)
+void IRAM_ATTR misty::charging_handler(void* _ctx)
 {
     esp_event_isr_post(MISTY_IO_EVENTS, gpio_ll_get_level(&GPIO, N_CHARGING_PIN) == 0 ? CHARGING_ACTIVE : CHARGING_INACTIVE, nullptr, 0, nullptr);
 }
