@@ -19,7 +19,7 @@ esp_err_t config_server::init()
     }
 
     httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
-    cfg.stack_size = 8192;
+    cfg.stack_size = 16384;
     esp_err_t ret = httpd_start(&httpd, &cfg);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "init: can't start httpd");
@@ -179,6 +179,8 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid argument");
     }
 
+    ESP_LOGI(TAG, "add_sched: got query str: %s", query);
+
     // Get the type first
     char val[16] = { 0 };
     auto ret = httpd_query_key_value(query, "type", val, sizeof(val) - 1);
@@ -249,8 +251,8 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
         }
 
         auto hour = strtol(val, nullptr, 10);
-        ESP_LOGI(TAG, "add_sched: dow.hour=%s parsed to %ld", val, dow);
-        if (hour < 1 || hour >= 24) {
+        ESP_LOGI(TAG, "add_sched: dow.hour=%s parsed to %ld", val, hour);
+        if (hour < 0 || hour >= 24) {
             ESP_LOGW(TAG, "add_sched: invalid DoW hour");
             return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid DoW hour");
         }
@@ -266,8 +268,8 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
         }
 
         auto min = strtol(val, nullptr, 10);
-        ESP_LOGI(TAG, "add_sched: dow.min=%s parsed to %ld", val, dow);
-        if (min < 1 || min >= 60) {
+        ESP_LOGI(TAG, "add_sched: dow.min=%s parsed to %ld", val, min);
+        if (min < 0 || min >= 60) {
             ESP_LOGW(TAG, "add_sched: invalid DoW minute");
             return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid DoW minute");
         }
@@ -283,7 +285,7 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
         }
 
         auto offset = (int16_t)strtol(val, nullptr, 10);
-        ESP_LOGI(TAG, "add_sched: sun.offset=%s parsed to %d", val, dow);
+        ESP_LOGI(TAG, "add_sched: sun.offset=%s parsed to %ld", val, dow);
 
         entry.offset_minute = offset;
     }
@@ -297,7 +299,7 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
     }
 
     auto dry_dur = (uint32_t)strtol(val, nullptr, 10);
-    ESP_LOGI(TAG, "add_sched: dry duration=%s parsed to %d", val, dow);
+    ESP_LOGI(TAG, "add_sched: dry duration=%s parsed to %ld", val, dry_dur);
 
     entry.duration_ms[sched_manager::PROFILE_DRY] = dry_dur;
 
@@ -310,7 +312,7 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
     }
 
     auto moderate_dur = (uint32_t)strtol(val, nullptr, 10);
-    ESP_LOGI(TAG, "add_sched: moderate duration=%s parsed to %d", val, dow);
+    ESP_LOGI(TAG, "add_sched: moderate duration=%s parsed to %ld", val, moderate_dur);
 
     entry.duration_ms[sched_manager::PROFILE_MODERATE] = moderate_dur;
 
@@ -323,7 +325,7 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
     }
 
     auto wet_dur = (uint32_t)strtol(val, nullptr, 10);
-    ESP_LOGI(TAG, "add_sched: wet duration=%s parsed to %d", val, dow);
+    ESP_LOGI(TAG, "add_sched: wet duration=%s parsed to %ld", val, wet_dur);
 
     entry.duration_ms[sched_manager::PROFILE_MODERATE] = wet_dur;
 
@@ -334,6 +336,8 @@ esp_err_t config_server::add_schedule_handler(httpd_req_t* req)
         ESP_LOGE(TAG, "add_sched: Invalid name");
         return httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Invalid name");
     }
+
+    ESP_LOGI(TAG, "add_sched: name=%s", val);
 
     ret = sched_manager::instance().set_schedule(val, &entry);
     if (ret != ESP_OK) {

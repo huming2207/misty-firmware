@@ -75,7 +75,7 @@ esp_err_t sched_manager::load_schedules()
         }
 
         cron_store_entry item = {};
-        size_t item_size = 0;
+        size_t item_size = sizeof(cron_store_entry);
         ret = nvs_get_blob(nvs, entry.key, &item, &item_size);
         if (ret != ESP_OK) {
             ESP_LOGE(TAG, "load_sched: Can't read item %s, returned 0x%x", entry.key, ret);
@@ -143,6 +143,7 @@ esp_err_t sched_manager::load_schedules()
 
 esp_err_t sched_manager::set_schedule(const char* name, const cron_store_entry* entry)
 {
+    ESP_LOGI(TAG, "set: begin");
     nvs_type_t nvs_type = NVS_TYPE_ANY;
     esp_err_t ret = nvs_find_key(nvs, name, &nvs_type);
     if (ret == ESP_ERR_NVS_NOT_FOUND || ret == ESP_ERR_NOT_FOUND) {
@@ -153,6 +154,8 @@ esp_err_t sched_manager::set_schedule(const char* name, const cron_store_entry* 
             return ret;
         }
 
+
+        ESP_LOGI(TAG, "set: OK, reloading");
         return load_schedules();
     }
 
@@ -260,7 +263,7 @@ void sched_manager::schedule_dispatcher(cron_task_item* item)
         ESP_LOGW(TAG, "Duration is too long, set back to 1 hour");
         duration_ms = 3600*1000;
     }
-    
+
     if ((item->sched_info.select_pumps & 0b01) != 0) {
         pump_manager::instance().run_a(duration_ms);
     }
