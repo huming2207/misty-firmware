@@ -2,6 +2,7 @@
 #include <esp_err.h>
 #include <nvs.h>
 #include <nvs_flash.h>
+#include <hal/gpio_ll.h>
 
 #include "air_sensor.hpp"
 #include "net_configurator.hpp"
@@ -13,6 +14,15 @@
 
 extern "C" void app_main(void)
 {
+    if (gpio_ll_get_level(&GPIO, misty::PUMP_TRIG_BTN_PIN) == 0 && gpio_ll_get_level(&GPIO, misty::CONFIG_BTN_PIN) == 0) {
+        vTaskDelay(100); // Dumb way of de-glitching & long press detection
+        if (gpio_ll_get_level(&GPIO, misty::PUMP_TRIG_BTN_PIN) == 0 && gpio_ll_get_level(&GPIO, misty::CONFIG_BTN_PIN) == 0) {
+            ESP_LOGW(TAG, "Factory reset detected, proceeding");
+            nvs_flash_erase();
+            ESP_LOGW(TAG, "Factory reset done!!");
+        }
+    }
+
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         // NVS partition was truncated and needs to be erased
