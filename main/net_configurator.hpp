@@ -52,6 +52,7 @@ public:
 private:
     net_configurator() = default;
     static bool wifi_has_station_config();
+    static esp_err_t lwip_sntp_stop_cb(void *ctx); // Run in LwIP thread ONLY
     static void wifi_evt_handler(void *_ctx, esp_event_base_t evt_base, int32_t evt_id, void *evt_data);
     static void net_cfg_evt_handler(void *_ctx, esp_event_base_t evt_base, int32_t evt_id, void *evt_data);
     static void wifi_off_timer_cb(TimerHandle_t timer);

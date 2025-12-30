@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "esp_wifi.h"
 #include "nvs_flash.h"
+#include "lwip/apps/sntp.h"
 
 ESP_EVENT_DEFINE_BASE(NET_CFG_EVENTS);
 
@@ -141,6 +142,16 @@ bool net_configurator::wifi_has_station_config()
     return strnlen((char *)wifi_cfg.sta.ssid, sizeof(wifi_config_t::sta.ssid)) != 0;
 }
 
+esp_err_t net_configurator::lwip_sntp_stop_cb(void* ctx)
+{
+    if (sntp_enabled()) {
+        ESP_LOGW(TAG, "SNTP is enabled, stop now");
+        sntp_stop();
+    }
+
+    return ESP_OK;
+}
+
 void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, int32_t evt_id, void* evt_data)
 {
     esp_err_t ret = ESP_OK;
@@ -190,6 +201,8 @@ void net_configurator::wifi_evt_handler(void* _ctx, esp_event_base_t evt_base, i
         ESP_LOGI(TAG, "Got IP Gateway: " IPSTR, IP2STR(&event->ip_info.gw));
 
         xEventGroupSetBits(ctx->net_events, NET_CFG_STATE_GOT_IP);
+        esp_netif_tcpip_exec(lwip_sntp_stop_cb, nullptr);
+        vTaskDelay(pdMS_TO_TICKS(1000));
         esp_sntp_config_t sntp_cfg = ESP_NETIF_SNTP_DEFAULT_CONFIG("pool.ntp.org");
         sntp_cfg.smooth_sync = false; // We want time sync as soon as possible
         sntp_cfg.sync_cb = sntp_sync_cb;
@@ -210,6 +223,8 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
         case NET_CFG_EVENT_FORCE_WIFI_STOP: {
             ESP_LOGI(TAG, "WiFi stop requested");
             esp_wifi_stop();
+
+            esp_netif_tcpip_exec(lwip_sntp_stop_cb, nullptr);
             ctx->server.stop();
             break;
         }
@@ -254,6 +269,7 @@ void net_configurator::net_cfg_evt_handler(void* _ctx, esp_event_base_t evt_base
         case NET_CFG_EVENT_WIFI_SYNC_DONE: {
             ESP_LOGW(TAG, "WIFI Sync done");
             xEventGroupSetBits(ctx->net_events, NET_CFG_STATE_SYNC_DONE);
+            esp_netif_tcpip_exec(lwip_sntp_stop_cb, nullptr);
             esp_wifi_stop(); // Just stop for now
             break;
         }
@@ -276,5 +292,6 @@ void net_configurator::wifi_sync_timer_cb(TimerHandle_t timer)
 
 void net_configurator::sntp_sync_cb(timeval* tv)
 {
+    ESP_LOGI(TAG, "Got time: %lld", tv->tv_sec);
     esp_event_post(NET_CFG_EVENTS, NET_CFG_EVENT_WIFI_SYNC_DONE, nullptr, 0, pdMS_TO_TICKS(3000));
 }
