@@ -1,6 +1,7 @@
 #include <esp_log.h>
 #include "pin_defs.hpp"
 
+#include "net_configurator.hpp"
 #include "hal/gpio_ll.h"
 
 
@@ -49,7 +50,7 @@ void IRAM_ATTR misty::chg_done_handler(void* _ctx)
 void IRAM_ATTR misty::config_btn_handler(void* _ctx)
 {
     if (gpio_ll_get_level(&GPIO, CONFIG_BTN_PIN) == 0) {
-        esp_event_isr_post(MISTY_IO_EVENTS, CONFIG_BUTTON_PRESSED, nullptr, 0, nullptr);
+        esp_event_isr_post(NET_CFG_EVENTS, net_configurator::NET_CFG_EVENT_WIFI_START_MANUAL, nullptr, 0, nullptr);
     }
 }
 

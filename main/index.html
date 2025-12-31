@@ -37,106 +37,121 @@
 </head>
 <body>
     <div class="container">
-        <div id="fw-info">Loading FW Info...</div>
-        <h1>Irrigation Manager</h1>
+        <div id="fw-info" data-i18n="loading_fw">Loading FW Info...</div>
+        <h1 data-i18n="header">Irrigation Manager</h1>
 
         <div class="card">
-            <h2>WiFi Settings</h2>
+            <h2 data-i18n="wifi_settings">WiFi Settings</h2>
             <div class="row">
                 <div class="col">
-                    <label>SSID</label>
-                    <input type="text" id="wifi-ssid" placeholder="Network Name">
+                    <label data-i18n="ssid">SSID</label>
+                    <input type="text" id="wifi-ssid" data-i18n-placeholder="ph_ssid" placeholder="Network Name">
                 </div>
                 <div class="col">
-                    <label>Password</label>
-                    <input type="password" id="wifi-pass" placeholder="Password">
+                    <label data-i18n="password">Password</label>
+                    <input type="password" id="wifi-pass" data-i18n-placeholder="ph_pwd" placeholder="Password">
                 </div>
                 <div style="flex: 0;">
                     <label>&nbsp;</label>
-                    <button onclick="setWifi()">Save</button>
+                    <button onclick="setWifi()" data-i18n="save">Save</button>
                 </div>
             </div>
         </div>
 
         <div class="card">
-            <h2>Current Schedules</h2>
-            <div id="schedule-list">Loading...</div>
+            <h2 data-i18n="current_schedules">Current Schedules</h2>
+            <div id="schedule-list" data-i18n="loading">Loading...</div>
         </div>
 
         <div class="card">
-            <h2>Add Schedule</h2>
+            <h2 data-i18n="add_schedule">Add Schedule</h2>
             <div class="row">
                 <div class="col">
-                    <label>Name</label>
-                    <input type="text" id="sched-name" maxlength="15" placeholder="e.g. Morning Mist">
+                    <label data-i18n="name">Name</label>
+                    <input type="text" id="sched-name" maxlength="15" data-i18n-placeholder="ph_name" placeholder="e.g. Morning Mist">
                 </div>
                 <div class="col">
-                    <label>Type</label>
+                    <label data-i18n="type">Type</label>
                     <select id="sched-type" onchange="updateForm()">
-                        <option value="dow">Day of Week (Time)</option>
-                        <option value="sunrise">Sunrise</option>
-                        <option value="sunset">Sunset</option>
+                        <option value="dow" data-i18n="dow_time">Day of Week (Time)</option>
+                        <option value="sunrise" data-i18n="sunrise">Sunrise</option>
+                        <option value="sunset" data-i18n="sunset">Sunset</option>
                     </select>
                 </div>
             </div>
 
             <div style="margin-top: 15px;">
-                <label>Pumps</label>
+                <label data-i18n="pumps">Pumps</label>
                 <div class="checkbox-group">
-                    <label><input type="checkbox" id="pump-0" value="1"> Pump 1</label>
-                    <label><input type="checkbox" id="pump-1" value="2"> Pump 2</label>
+                    <label><input type="checkbox" id="pump-0" value="1"><span data-i18n="pump1">Pump 1</span></label>
+                    <label><input type="checkbox" id="pump-1" value="2"><span data-i18n="pump2">Pump 2</span></label>
                 </div>
             </div>
 
             <div style="margin-top: 15px;">
-                <label>Days of Week</label>
+                <label data-i18n="days_of_week">Days of Week</label>
                 <div class="checkbox-group">
-                    <label><input type="checkbox" class="dow-chk" value="1"> Sun</label>
-                    <label><input type="checkbox" class="dow-chk" value="2"> Mon</label>
-                    <label><input type="checkbox" class="dow-chk" value="4"> Tue</label>
-                    <label><input type="checkbox" class="dow-chk" value="8"> Wed</label>
-                    <label><input type="checkbox" class="dow-chk" value="16"> Thu</label>
-                    <label><input type="checkbox" class="dow-chk" value="32"> Fri</label>
-                    <label><input type="checkbox" class="dow-chk" value="64"> Sat</label>
+                    <label><input type="checkbox" class="dow-chk" value="1"><span data-i18n="sun">Sun</span></label>
+                    <label><input type="checkbox" class="dow-chk" value="2"><span data-i18n="mon">Mon</span></label>
+                    <label><input type="checkbox" class="dow-chk" value="4"><span data-i18n="tue">Tue</span></label>
+                    <label><input type="checkbox" class="dow-chk" value="8"><span data-i18n="wed">Wed</span></label>
+                    <label><input type="checkbox" class="dow-chk" value="16"><span data-i18n="thu">Thu</span></label>
+                    <label><input type="checkbox" class="dow-chk" value="32"><span data-i18n="fri">Fri</span></label>
+                    <label><input type="checkbox" class="dow-chk" value="64"><span data-i18n="sat">Sat</span></label>
                 </div>
             </div>
 
             <div class="row" id="time-input" style="margin-top: 15px;">
                 <div class="col">
-                    <label>Hour (0-23)</label>
+                    <label data-i18n="hour">Hour (0-23)</label>
                     <input type="number" id="sched-hour" min="0" max="23" value="8">
                 </div>
                 <div class="col">
-                    <label>Minute (0-59)</label>
+                    <label data-i18n="minute">Minute (0-59)</label>
                     <input type="number" id="sched-min" min="0" max="59" value="0">
                 </div>
             </div>
 
             <div class="row hidden" id="offset-input" style="margin-top: 15px;">
                 <div class="col">
-                    <label>Offset (Minutes, +/-)</label>
+                    <label data-i18n="offset">Offset (Minutes, +/-)</label>
                     <input type="number" id="sched-offset" value="0">
                 </div>
             </div>
 
             <div class="row" style="margin-top: 15px;">
                 <div class="col">
-                    <label>Dry Duration (ms)</label>
+                    <label data-i18n="dry_dur">Dry Duration (ms)</label>
                     <input type="number" id="dur-dry" value="5000">
                 </div>
                 <div class="col">
-                    <label>Moderate Duration (ms)</label>
+                    <label data-i18n="mod_dur">Moderate Duration (ms)</label>
                     <input type="number" id="dur-mod" value="5000">
                 </div>
                 <div class="col">
-                    <label>Wet Duration (ms)</label>
+                    <label data-i18n="wet_dur">Wet Duration (ms)</label>
                     <input type="number" id="dur-wet" value="5000">
                 </div>
             </div>
 
             <div style="margin-top: 20px; text-align: right;">
-                <button onclick="addSchedule()">Add Schedule</button>
+                <button onclick="addSchedule()" data-i18n="add_schedule">Add Schedule</button>
             </div>
+        </div>
+
+        <div class="card">
+            <h2 data-i18n="firmware_update">Firmware Update</h2>
+            <div class="row">
+                <div class="col">
+                    <label data-i18n="select_fw">Select Firmware Binary (.bin)</label>
+                    <input type="file" id="ota-file" accept=".bin">
+                </div>
+                <div style="flex: 0;">
+                    <label>&nbsp;</label>
+                    <button onclick="performOTA()" id="ota-btn" data-i18n="upload_flash">Upload & Flash</button>
+                </div>
+            </div>
+            <div id="ota-status" style="margin-top: 10px; font-weight: bold;"></div>
         </div>
     </div>
 
@@ -144,6 +159,174 @@
         const API_SCHED = '/api/schedule';
         const API_WIFI = '/api/wifi';
         const API_FW = '/api/fwinfo';
+        const API_OTA = '/api/ota';
+
+        const i18n = {
+            en: {
+                title: "Irrigation Config",
+                loading_fw: "Loading FW Info...",
+                header: "Irrigation Manager",
+                wifi_settings: "WiFi Settings",
+                ssid: "SSID",
+                password: "Password",
+                save: "Save",
+                current_schedules: "Current Schedules",
+                loading: "Loading...",
+                add_schedule: "Add Schedule",
+                name: "Name",
+                type: "Type",
+                dow_time: "Day of Week (Time)",
+                sunrise: "Sunrise",
+                sunset: "Sunset",
+                pumps: "Pumps",
+                pump1: "Pump 1",
+                pump2: "Pump 2",
+                days_of_week: "Days of Week",
+                sun: "Sun", mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat",
+                hour: "Hour (0-23)",
+                minute: "Minute (0-59)",
+                offset: "Offset (Minutes, +/-)",
+                dry_dur: "Dry Duration (ms)",
+                mod_dur: "Moderate Duration (ms)",
+                wet_dur: "Wet Duration (ms)",
+                firmware_update: "Firmware Update",
+                select_fw: "Select Firmware Binary (.bin)",
+                upload_flash: "Upload & Flash",
+                ph_ssid: "Network Name",
+                ph_pwd: "Password",
+                ph_name: "e.g. Morning Mist",
+                no_schedules: "No schedules found.",
+                err_loading_sched: "Error loading schedules.",
+                delete: "Delete",
+                name_req: "Name required",
+                select_pump: "Select at least one pump",
+                select_day: "Select at least one day",
+                added: "Added!",
+                err_add: "Error adding schedule",
+                net_err: "Network error",
+                confirm_del: "Delete {name}?",
+                err_del: "Error deleting",
+                wifi_success: "WiFi configuration successful! The device is now applying the settings and may reboot.",
+                err_wifi: "Error setting WiFi",
+                file_req: "Please select a file first.",
+                uploading: "Uploading... Please wait.",
+                update_success: "Update successful! Rebooting...",
+                update_fail: "Update failed: ",
+                err_update_net: "Network error during update.",
+                sun_event: "SunEvent",
+                pump_short: "P"
+            },
+            zh: {
+                title: "灌溉配置",
+                loading_fw: "正在加载固件信息...",
+                header: "灌溉管理器",
+                wifi_settings: "WiFi 设置",
+                ssid: "SSID",
+                password: "密码",
+                save: "保存",
+                current_schedules: "当前计划",
+                loading: "加载中...",
+                add_schedule: "添加计划",
+                name: "名称",
+                type: "类型",
+                dow_time: "星期 (时间)",
+                sunrise: "日出",
+                sunset: "日落",
+                pumps: "水泵",
+                pump1: "水泵 1",
+                pump2: "水泵 2",
+                days_of_week: "星期",
+                sun: "周日", mon: "周一", tue: "周二", wed: "周三", thu: "周四", fri: "周五", sat: "周六",
+                hour: "小时 (0-23)",
+                minute: "分钟 (0-59)",
+                offset: "偏移量 (分钟, +/-)",
+                dry_dur: "干燥时长 (毫秒)",
+                mod_dur: "适中时长 (毫秒)",
+                wet_dur: "潮湿时长 (毫秒)",
+                firmware_update: "固件更新",
+                select_fw: "选择固件文件 (.bin)",
+                upload_flash: "上传并刷写",
+                ph_ssid: "网络名称",
+                ph_pwd: "密码",
+                ph_name: "例如: 清晨喷雾",
+                no_schedules: "未找到计划。",
+                err_loading_sched: "加载计划出错。",
+                delete: "删除",
+                name_req: "需要名称",
+                select_pump: "至少选择一个水泵",
+                select_day: "至少选择一天",
+                added: "已添加!",
+                err_add: "添加计划出错",
+                net_err: "网络错误",
+                confirm_del: "删除 {name}?",
+                err_del: "删除出错",
+                wifi_success: "WiFi 配置成功！设备正在应用设置，可能会重启。",
+                err_wifi: "设置 WiFi 出错",
+                file_req: "请先选择一个文件。",
+                uploading: "正在上传... 请稍候。",
+                update_success: "更新成功！正在重启...",
+                update_fail: "更新失败: ",
+                err_update_net: "更新过程中发生网络错误。",
+                sun_event: "天文事件",
+                pump_short: "泵"
+            }
+        };
+
+        const lang = navigator.language.startsWith('zh') ? 'zh' : 'en';
+
+        function t(key) {
+            return (i18n[lang] && i18n[lang][key]) || i18n['en'][key] || key;
+        }
+
+        function applyTranslations() {
+            document.title = t('title');
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                el.innerText = t(el.getAttribute('data-i18n'));
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+            });
+        }
+
+        async function performOTA() {
+            const fileInput = document.getElementById('ota-file');
+            const statusDiv = document.getElementById('ota-status');
+            const btn = document.getElementById('ota-btn');
+
+            if (!fileInput.files.length) {
+                statusDiv.innerText = t('file_req');
+                statusDiv.style.color = "red";
+                return;
+            }
+
+            const file = fileInput.files[0];
+            statusDiv.innerText = t('uploading');
+            statusDiv.style.color = "blue";
+            btn.disabled = true;
+
+            try {
+                const res = await fetch(API_OTA, {
+                    method: 'POST',
+                    body: file
+                });
+
+                if (res.ok) {
+                    statusDiv.innerText = t('update_success');
+                    statusDiv.style.color = "green";
+                    // Reload page after a delay to allow reboot
+                    setTimeout(() => window.location.reload(), 10000); 
+                } else {
+                    statusDiv.innerText = t('update_fail') + res.statusText;
+                    statusDiv.style.color = "red";
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                statusDiv.innerText = t('err_update_net');
+                statusDiv.style.color = "red";
+                console.error(e);
+                btn.disabled = false;
+            }
+        }
 
         async function fetchInfo() {
             try {
@@ -155,14 +338,14 @@
 
         async function fetchSchedules() {
             const listEl = document.getElementById('schedule-list');
-            listEl.innerHTML = 'Loading...';
+            listEl.innerHTML = t('loading');
             try {
                 const res = await fetch(API_SCHED);
                 const names = await res.json();
                 listEl.innerHTML = '';
                 
                 if (names.length === 0) {
-                    listEl.innerHTML = '<div>No schedules found.</div>';
+                    listEl.innerHTML = `<div>${t('no_schedules')}</div>`;
                     return;
                 }
 
@@ -176,7 +359,7 @@
                     } catch (e) { console.error(e); }
                 }
             } catch (e) {
-                listEl.innerHTML = 'Error loading schedules.';
+                listEl.innerHTML = t('err_loading_sched');
                 console.error(e);
             }
         }
@@ -218,22 +401,22 @@
             if (dData.type === 0 || dData.type === 'dow') {
                 timeStr = `@ ${String(dData.h).padStart(2,'0')}:${String(dData.m).padStart(2,'0')}`;
             } else {
-                const typeName = dData.type === 1 ? 'Sunrise' : (dData.type === 2 ? 'Sunset' : 'SunEvent');
+                const typeName = dData.type === 1 ? t('sunrise') : (dData.type === 2 ? t('sunset') : t('sun_event'));
                 const sign = dData.offset >= 0 ? '+' : '';
                 timeStr = `@ ${typeName} ${sign}${dData.offset}m`;
             }
 
             // Decode DoW
-            const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+            const daysKey = ['sun','mon','tue','wed','thu','fri','sat'];
             let dayStr = [];
             for(let i=0; i<7; i++) {
-                if ((dData.dow >> i) & 1) dayStr.push(days[i]);
+                if ((dData.dow >> i) & 1) dayStr.push(t(daysKey[i]));
             }
 
             // Decode Pumps
             let pumpStr = [];
-            if (dData.pump & 1) pumpStr.push('P1');
-            if (dData.pump & 2) pumpStr.push('P2');
+            if (dData.pump & 1) pumpStr.push(t('pump_short') + '1');
+            if (dData.pump & 2) pumpStr.push(t('pump_short') + '2');
 
             el.innerHTML = `
                 <div>
@@ -243,25 +426,25 @@
                         | Dur: [${dData.duration.join(', ')}] ms
                     </span>
                 </div>
-                <button class="danger" onclick="deleteSchedule('${dData.name}')">Delete</button>
+                <button class="danger" onclick="deleteSchedule('${dData.name}')">${t('delete')}</button>
             `;
             container.appendChild(el);
         }
 
         async function addSchedule() {
             const name = document.getElementById('sched-name').value;
-            if (!name) return alert('Name required');
+            if (!name) return alert(t('name_req'));
 
             const type = document.getElementById('sched-type').value;
             
             let pump = 0;
             if (document.getElementById('pump-0').checked) pump |= 1;
             if (document.getElementById('pump-1').checked) pump |= 2;
-            if (pump === 0) return alert('Select at least one pump');
+            if (pump === 0) return alert(t('select_pump'));
 
             let dow = 0;
             document.querySelectorAll('.dow-chk:checked').forEach(el => dow |= parseInt(el.value));
-            if (dow === 0) return alert('Select at least one day');
+            if (dow === 0) return alert(t('select_day'));
 
             const durd = document.getElementById('dur-dry').value;
             const durm = document.getElementById('dur-mod').value;
@@ -299,38 +482,38 @@
             try {
                 const res = await fetch(`${API_SCHED}?${query}`, { method: 'POST' });
                 if (res.ok) {
-                    alert('Added!');
+                    alert(t('added'));
                     fetchSchedules();
                 } else {
-                    alert('Error adding schedule');
+                    alert(t('err_add'));
                 }
             } catch (e) {
-                alert('Network error');
+                alert(t('net_err'));
             }
         }
 
         async function deleteSchedule(name) {
-            if (!confirm(`Delete ${name}?`)) return;
+            if (!confirm(t('confirm_del').replace('{name}', name))) return;
             try {
                 const res = await fetch(`${API_SCHED}?name=${encodeURIComponent(name)}`, { method: 'DELETE' });
                 if (res.ok) fetchSchedules();
-                else alert('Error deleting');
-            } catch (e) { alert('Network error'); }
+                else alert(t('err_del'));
+            } catch (e) { alert(t('net_err')); }
         }
 
         async function setWifi() {
             const ssid = document.getElementById('wifi-ssid').value;
             const pwd = document.getElementById('wifi-pass').value;
-            if (!ssid) return alert('SSID required');
+            if (!ssid) return alert(t('ph_ssid') + ' required'); // Simplified check
             
             try {
                 const res = await fetch(`${API_WIFI}?ssid=${encodeURIComponent(ssid)}&pwd=${encodeURIComponent(pwd)}`, { method: 'POST' });
                 if (res.ok) {
-                    window.alert('WiFi configuration successful! The device is now applying the settings and may reboot.');
+                    window.alert(t('wifi_success'));
                 } else {
-                    alert('Error setting WiFi');
+                    alert(t('err_wifi'));
                 }
-            } catch (e) { alert('Network error'); }
+            } catch (e) { alert(t('net_err')); }
         }
 
         async function syncTime() {
@@ -358,6 +541,7 @@
         }
 
         // Init
+        applyTranslations();
         fetchInfo();
         fetchSchedules();
         setTimeout(syncTime, 3000);

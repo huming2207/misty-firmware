@@ -1,9 +1,13 @@
 #include <esp_log.h>
 #include <esp_app_desc.h>
 #include <esp_wifi.h>
+#include <esp_partition.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include <sys/time.h>
 #include "config_server.hpp"
 
+#include "esp_ota_ops.h"
 #include "mjson.h"
 #include "net_configurator.hpp"
 #include "sched_manager.hpp"
@@ -77,6 +81,14 @@ esp_err_t config_server::init()
         .user_ctx = this,
     };
     ret = ret ?: httpd_register_uri_handler(httpd, &set_time_cfg);
+
+    httpd_uri_t ota_update_cfg = {
+        .uri = "/api/ota",
+        .method = HTTP_POST,
+        .handler = ota_update_handler,
+        .user_ctx = this,
+    };
+    ret = ret ?: httpd_register_uri_handler(httpd, &ota_update_cfg);
 
     httpd_uri_t index_cfg = {
         .uri = "/",
@@ -473,4 +485,70 @@ esp_err_t config_server::index_handler(httpd_req_t* req)
     httpd_resp_set_type(req, "text/html");
     const size_t len = index_html_end - index_html_start;
     return httpd_resp_send(req, index_html_start, (ssize_t)len);
+}
+
+esp_err_t config_server::ota_update_handler(httpd_req_t *req)
+{
+    char buf[1024];
+    esp_ota_handle_t update_handle = 0;
+    const esp_partition_t *update_partition = esp_ota_get_next_update_partition(nullptr);
+
+    if (update_partition == nullptr) {
+        ESP_LOGE(TAG, "ota: No partition found");
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "No OTA partition");
+    }
+
+    ESP_LOGI(TAG, "ota: Writing to partition subtype %d at offset 0x%lx",
+             update_partition->subtype, update_partition->address);
+
+    esp_err_t err = esp_ota_begin(update_partition, OTA_SIZE_UNKNOWN, &update_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ota: esp_ota_begin failed (%s)", esp_err_to_name(err));
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA begin failed");
+    }
+
+    int remaining = req->content_len;
+    while (remaining > 0) {
+        int to_recv = (remaining < sizeof(buf)) ? remaining : sizeof(buf);
+        int ret = httpd_req_recv(req, buf, to_recv);
+        if (ret <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                continue;
+            }
+            ESP_LOGE(TAG, "ota: recv failed");
+            esp_ota_end(update_handle);
+            return ESP_FAIL;
+        }
+
+        err = esp_ota_write(update_handle, buf, ret);
+        if (err != ESP_OK) {
+            ESP_LOGE(TAG, "ota: write failed (%s)", esp_err_to_name(err));
+            esp_ota_end(update_handle);
+            return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA write failed");
+        }
+
+        remaining -= ret;
+    }
+
+    err = esp_ota_end(update_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ota: end failed (%s)", esp_err_to_name(err));
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OTA end failed");
+    }
+
+    err = esp_ota_set_boot_partition(update_partition);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "ota: set_boot_partition failed (%s)", esp_err_to_name(err));
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Set boot partition failed");
+    }
+
+    ESP_LOGI(TAG, "ota: OTA success, rebooting...");
+    httpd_resp_set_status(req, "202 Accepted");
+    httpd_resp_sendstr(req, "OTA Success. Rebooting...");
+    
+    // Give time for the response to go out
+    vTaskDelay(pdMS_TO_TICKS(1000));
+    esp_restart();
+
+    return ESP_OK;
 }

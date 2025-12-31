@@ -8,7 +8,7 @@ idf_component_register(
         PRIV_REQUIRES
             spi_flash esp_driver_i2c esp_driver_gpio
             esp_driver_ledc hal esp_timer nvs_flash esp_schedule
-            esp_http_server esp_wifi esp_app_format
+            esp_http_server esp_wifi esp_app_format app_update
         INCLUDE_DIRS "." "./driver"
         EMBED_TXTFILES "index.html"
 )
