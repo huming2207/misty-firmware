@@ -46,7 +46,7 @@ esp_err_t pump_manager::init()
         return ESP_ERR_NO_MEM;
     }
 
-    motor_b_off_timer = xTimerCreate("motor_b_off", 1, pdFALSE, this, motor_a_off_timer_cb);
+    motor_b_off_timer = xTimerCreate("motor_b_off", 1, pdFALSE, this, motor_b_off_timer_cb);
     if (motor_b_off_timer == nullptr) {
         ESP_LOGE(TAG, "Failed to create motor B off timer");
         return ESP_ERR_NO_MEM;
@@ -154,6 +154,7 @@ void pump_manager::pump_event_handler(void* _ctx, esp_event_base_t evt_base, int
                     gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 0);
                 }
 
+                ESP_LOGI(TAG, "Pump A stopped");
                 break;
             }
 
@@ -167,6 +168,7 @@ void pump_manager::pump_event_handler(void* _ctx, esp_event_base_t evt_base, int
                     gpio_ll_set_level(&GPIO, misty::PUMP_SLEEP_PIN, 0);
                 }
 
+                ESP_LOGI(TAG, "Pump A stopped");
                 break;
             }
 
@@ -214,6 +216,4 @@ void pump_manager::pump_event_handler(void* _ctx, esp_event_base_t evt_base, int
             }
         }
     }
-
-
 }
